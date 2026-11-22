@@ -97,6 +97,7 @@ export function selectZeroOverlapLabels(
     selectedId?: string | null;
     hoveredId?: string | null;
     highlightedIds?: Set<string>;
+    labelScale?: number;
   }
 ): PlacedLabelMarker[] {
   const {
@@ -108,7 +109,8 @@ export function selectZeroOverlapLabels(
     forceAllLod = false,
     selectedId,
     hoveredId,
-    highlightedIds
+    highlightedIds,
+    labelScale = 1.22
   } = options;
 
   const bounds = computeNormalizedViewportBounds(
@@ -154,13 +156,18 @@ export function selectZeroOverlapLabels(
 
     const eligible = isForced || nation.lodTier <= maxLod;
     const labelText = `#${nation.nationNum} ${nation.shortName}`;
-    const boxW = Math.max(54, Math.min(162, labelText.length * 6.4 + 14));
-    const boxH = 19;
+    const tierBoost = nation.lodTier === 0 ? 1.14 : 1.0;
+    const effScale = labelScale * tierBoost;
+    const boxW = Math.max(
+      72 * effScale,
+      Math.min(230 * effScale, (labelText.length * 7.6 + 22) * effScale)
+    );
+    const boxH = Math.round(24 * effScale);
     const box = {
       x1: sx - boxW / 2,
-      y1: sy - boxH - 6,
+      y1: sy - boxH - 8,
       x2: sx + boxW / 2,
-      y2: sy - 6
+      y2: sy - 8
     };
 
     let showLabel = false;

@@ -51,6 +51,11 @@ import type {
   UnlinkedMention
 } from "@/types/codex";
 import { extractHeadings, linkFirstMention } from "@/lib/wikilinks";
+import {
+  autoLinkAllUnlinkedMentions,
+  computeEntryCompleteness,
+  extractFootnotes
+} from "@/lib/wiki-intelligence";
 import { translateVietnameseToConlang } from "@/lib/conlang";
 import { computeLineDiff } from "@/lib/v2-engines";
 import { countWords } from "@/lib/vietnamese";
@@ -180,6 +185,20 @@ export function EntryDetailView({
   const [showRevisionsModal, setShowRevisionsModal] = useState(false);
   const [diffRevId, setDiffRevId] = useState<string>("");
   const [showShareCard, setShowShareCard] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
+  const [showCompletenessDetail, setShowCompletenessDetail] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const scrollTop = window.scrollY || doc.scrollTop;
+      const maxScroll = Math.max(1, doc.scrollHeight - window.innerHeight);
+      setReadingProgress(Math.min(100, Math.round((scrollTop / maxScroll) * 100)));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // V4.0 Multi-Form / Alternate Canon Variants
   const [activeVariantId, setActiveVariantId] = useState<string>("__base");
@@ -504,6 +523,24 @@ export function EntryDetailView({
     );
   }
 
+  async function handleAutoLinkAllMentions() {
+    if (!entry || mentions.length === 0) return;
+    const candidates = mentions.map((m) => ({
+      id: m.targetEntryId,
+      title: m.targetTitle
+    }));
+    const { markdown, linkedTitles } = autoLinkAllUnlinkedMentions(
+      entry.contentMarkdown,
+      candidates,
+      entry.id
+    );
+    if (linkedTitles.length === 0) return;
+    await patchEntryInline(
+      { contentMarkdown: markdown },
+      `Gắn tự động ${linkedTitles.length} liên kết [[Wikilink]]`
+    );
+  }
+
   async function handleAddRelation(e: React.FormEvent) {
     e.preventDefault();
     if (!entry || !relTargetId || !relType.trim()) return;
@@ -618,6 +655,8 @@ export function EntryDetailView({
   const visualDiffLines = selectedDiffRev
     ? computeLineDiff(selectedDiffRev.snapshot.contentMarkdown, entry.contentMarkdown)
     : [];
+  const completeness = computeEntryCompleteness(entry);
+  const footnotes = extractFootnotes(entry.contentMarkdown);
 
   const contentBody = (
     <div className="space-y-4">
@@ -637,6 +676,62 @@ export function EntryDetailView({
         </div>
       ) : (
         <div style={zenMode ? { fontSize: `${zenFontSize}px` } : undefined}>
+          {/* Reading Progress Bar + Completeness Score Strip */}
+          {!zenMode && (
+            <>
+              <div className="fixed top-0 left-0 right-0 z-40 h-0.5 bg-transparent pointer-events-none no-print">
+                <div
+                  className="h-full bg-gradient-to-r from-[var(--accent)] to-cyan-400 transition-all duration-150"
+                  style={{ width: `${readingProgress}%` }}
+                />
+              </div>
+              <div className="mb-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 px-3 py-2 text-xs no-print">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      Độ hoàn thiện hồ sơ: {completeness.score}%
+                    </span>
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                      {completeness.tierLabel}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCompletenessDetail((v) => !v)}
+                    className="text-[11px] text-[var(--accent)] hover:underline cursor-pointer"
+                  >
+                    {showCompletenessDetail ? "Ẩn tiêu chí" : "Xem tiêu chí bách khoa"}
+                  </button>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 via-emerald-400 to-cyan-400 transition-all duration-300"
+                    style={{ width: `${completeness.score}%` }}
+                  />
+                </div>
+                {showCompletenessDetail && (
+                  <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-2 border-t border-[var(--border-subtle)]">
+                    {completeness.checks.map((c) => (
+                      <div key={c.key} className="flex items-start gap-1.5 text-[11px]">
+                        <span className={c.passed ? "text-emerald-400" : "text-amber-400"}>
+                          {c.passed ? "✓" : "○"}
+                        </span>
+                        <div>
+                          <div className={c.passed ? "text-[var(--text-secondary)]" : "text-[var(--text-primary)] font-medium"}>
+                            {c.label}
+                          </div>
+                          {!c.passed && (
+                            <div className="text-[10px] text-[var(--text-muted)]">{c.hint}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           <MarkdownCodexRenderer
             markdown={entry.contentMarkdown}
             linkLookup={linkLookup}
@@ -646,6 +741,23 @@ export function EntryDetailView({
             onOpenEntry={onOpenEntry}
             onCreateRedLink={onCreateRedLink}
           />
+          {footnotes.length > 0 && (
+            <section className="mt-6 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-4 space-y-2">
+              <h4 className="font-display text-sm font-semibold text-[var(--accent)]">
+                Tài liệu tham khảo & Chú thích ({footnotes.length})
+              </h4>
+              <ol className="space-y-1.5 text-xs text-[var(--text-secondary)] list-decimal pl-5">
+                {footnotes.map((fn) => (
+                  <li key={fn.id}>
+                    <span className="font-mono text-[10px] text-[var(--accent)] mr-1.5">
+                      [^{fn.id}]
+                    </span>
+                    {fn.text}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
         </div>
       )}
     </div>
@@ -1701,9 +1813,20 @@ export function EntryDetailView({
 
                 {canEdit && mentions.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="font-display text-base text-amber-300 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4" /> Gợi ý nhắc tới chưa gắn liên kết ({mentions.length})
-                    </h3>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-display text-base text-amber-300 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4" /> Gợi ý nhắc tới chưa gắn liên kết ({mentions.length})
+                      </h3>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={handleAutoLinkAllMentions}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-400 text-[#090e1c] text-xs font-semibold hover:bg-amber-300 cursor-pointer disabled:opacity-50"
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        Gắn tất cả ({mentions.length})
+                      </button>
+                    </div>
                     {mentions.map((m) => (
                       <div key={m.targetEntryId} className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
                         <span>Bài viết nhắc tới <strong>{m.targetTitle}</strong></span>

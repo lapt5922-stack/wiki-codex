@@ -776,6 +776,14 @@ import {
 } from "@/lib/planetary-atlas/climate-geology";
 import { selectZeroOverlapLabels } from "@/lib/planetary-atlas/lod-engine";
 import { samplePlanetaryTerrainPixel } from "@/lib/planetary-atlas/terrain-backdrop";
+import {
+  autoLinkAllUnlinkedMentions,
+  computeEntryCompleteness,
+  computeLineDiff as computeWikiLineDiff,
+  estimateReadingStats,
+  extractFootnotes,
+  extractMarkdownToc
+} from "@/lib/wiki-intelligence";
 
 describe("14. Mega-Planet World Atlas (360 Quốc gia, Voronoi, Zero-Overlap LOD & Dijkstra)", () => {
   it("sinh đủ 360 quốc gia & lãnh thổ trên 8 lục địa + hải vực, đa giác Voronoi hợp lệ và lõi Tam Biên đồng quy", () => {
@@ -912,6 +920,90 @@ describe("14. Mega-Planet World Atlas (360 Quốc gia, Voronoi, Zero-Overlap LOD
       expect(s.g).toBeLessThanOrEqual(255);
       expect(s.b).toBeGreaterThanOrEqual(0);
       expect(s.b).toBeLessThanOrEqual(255);
+    }
+  });
+});
+
+describe("15. Wiki Intelligence 2.0 (TOC, Footnotes, Completeness, Diff, Auto-Wikilink & Scaled Labels)", () => {
+  it("trích xuất Mục lục TOC, Footnote [^1], Reading Stats và chấm điểm Hoàn thiện Hồ sơ chính xác", () => {
+    const md = [
+      "## Lịch sử Liên minh Tam Biên",
+      "Liên bang Hoàng gia Valoria ký kết hiệp ước với Đế chế Hỏa Sơn Ignisia và Zog-Koth.",
+      "### Hệ thống Lưu trữ",
+      "Các học giả tại [[Học Viện Ngã Ba Tam Biên]] lưu giữ biên niên sử[^1] cùng [[Vùng Đệm Lưu Trữ Tam Biên]].",
+      "[^1]: Biên niên sử Tam Biên, quyển IV, lưu trữ tại Concordia Spire."
+    ].join("\n\n");
+
+    const toc = extractMarkdownToc(md);
+    expect(toc).toHaveLength(2);
+    expect(toc[0].level).toBe(2);
+    expect(toc[1].level).toBe(3);
+
+    const footnotes = extractFootnotes(md);
+    expect(footnotes).toHaveLength(1);
+    expect(footnotes[0].id).toBe("1");
+
+    const stats = estimateReadingStats(md);
+    expect(stats.words).toBeGreaterThan(20);
+    expect(stats.wikilinks).toBe(2);
+    expect(stats.footnotes).toBe(1);
+
+    const report = computeEntryCompleteness({
+      summary: "Hồ sơ bách khoa đầy đủ về Liên minh Tam Biên Aurelia.",
+      contentMarkdown: md + " " + "nội dung chi tiết ".repeat(45),
+      customFields: { capital: "Aurelion Prime" },
+      extraFields: [],
+      sourcesMarkdown: "Biên niên sử Aurelia",
+      categoryId: "cat-1",
+      tags: ["tam-bien"],
+      coverImage: ""
+    });
+    expect(report.score).toBe(100);
+    expect(report.tierLabel).toBe("Chuẩn Bách Khoa");
+  });
+
+  it("tự động gắn 1-Click Auto-Wikilink, tính Diff dòng chính xác và đảm bảo nhãn lớn vẫn Zero-Overlap", () => {
+    const { markdown, linkedTitles } = autoLinkAllUnlinkedMentions(
+      "Chuyến khảo sát từ Valoria sang Ignisia đi qua hẻm núi Zog-Koth.",
+      [
+        { id: "e1", title: "Valoria" },
+        { id: "e2", title: "Ignisia" },
+        { id: "e3", title: "Zog-Koth" }
+      ],
+      "e-self"
+    );
+    expect(linkedTitles).toHaveLength(3);
+    expect(markdown).toContain("[[Valoria]]");
+    expect(markdown).toContain("[[Ignisia]]");
+    expect(markdown).toContain("[[Zog-Koth]]");
+
+    const diff = computeWikiLineDiff("Dòng 1\nDòng cũ\nDòng 3", "Dòng 1\nDòng mới\nDòng 3");
+    expect(diff.some((d) => d.type === "remove" && d.line === "Dòng cũ")).toBe(true);
+    expect(diff.some((d) => d.type === "add" && d.line === "Dòng mới")).toBe(true);
+
+    // Larger labels (labelScale = 1.45) must still maintain strict zero-overlap
+    const bundle = buildPlanetaryAtlasBundle();
+    const placedLarge = selectZeroOverlapLabels(bundle.nations, {
+      zoom: 2.4,
+      panX: 0,
+      panY: 0,
+      canvasWidth: bundle.canvasWidth,
+      canvasHeight: bundle.canvasHeight,
+      labelScale: 1.45
+    }).filter((m) => m.showLabel);
+    expect(placedLarge.length).toBeGreaterThan(0);
+    for (let i = 0; i < placedLarge.length; i++) {
+      for (let j = i + 1; j < placedLarge.length; j++) {
+        const a = placedLarge[i].box;
+        const b = placedLarge[j].box;
+        const overlaps = !(
+          a.x2 + 2 < b.x1 ||
+          a.x1 - 2 > b.x2 ||
+          a.y2 + 1 < b.y1 ||
+          a.y1 - 1 > b.y2
+        );
+        expect(overlaps).toBe(false);
+      }
     }
   });
 });

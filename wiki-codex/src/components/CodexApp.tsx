@@ -66,6 +66,7 @@ import { EntryTypeManagerModal } from "./EntryTypeManagerModal";
 import { KnowledgeGraphView } from "./KnowledgeGraphView";
 import { TimelineView } from "./TimelineView";
 import { AtlasView } from "./AtlasView";
+import { CategorySliderRibbon } from "./CategorySliderRibbon";
 import { ConlangStudioView } from "./ConlangStudioView";
 import { LoreboardView } from "./LoreboardView";
 import { CalendarView } from "./CalendarView";
@@ -208,6 +209,18 @@ export function CodexApp() {
   const canEdit = user.role === "admin" || user.role === "editor";
   const isAdmin = user.role === "admin";
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) ?? workspaces[0];
+
+  const categoryCounts = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    const walk = (nodes: CategoryTreeNode[]) => {
+      for (const n of nodes) {
+        map[n.id] = n.totalUniqueCount ?? n.directCount ?? 0;
+        if (n.children?.length) walk(n.children);
+      }
+    };
+    walk(categoryTree);
+    return map;
+  }, [categoryTree]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("wiki_codex_theme") as FantasyThemeId | null;
@@ -759,20 +772,44 @@ export function CodexApp() {
               onMutated={refreshAll}
             />
           ) : section === "home" && activeWorkspace ? (
-            <GrandHallView
-              workspace={activeWorkspace}
-              entries={entries}
-              totalEntries={totalEntries}
-              categoryCount={categories.length}
-              entryTypeCount={entryTypes.length}
-              collections={collections}
-              activities={activityLog}
-              recentIds={recentIds}
-              onOpenEntry={handleOpenEntry}
-              onNavigate={(sec) => setSection(sec as MainSection)}
-            />
+            <div className="space-y-4 animate-codex-fade-up">
+              <CategorySliderRibbon
+                categories={categories}
+                categoryCounts={categoryCounts}
+                totalEntries={totalEntries}
+                selectedCategoryId={selectedCategoryId || ""}
+                onSelectCategory={(cid) => {
+                  setSelectedCategoryId(cid || null);
+                  setSection("database");
+                  setPage(1);
+                }}
+              />
+              <GrandHallView
+                workspace={activeWorkspace}
+                entries={entries}
+                totalEntries={totalEntries}
+                categoryCount={categories.length}
+                entryTypeCount={entryTypes.length}
+                collections={collections}
+                activities={activityLog}
+                recentIds={recentIds}
+                onOpenEntry={handleOpenEntry}
+                onNavigate={(sec) => setSection(sec as MainSection)}
+              />
+            </div>
           ) : section === "database" ? (
-            <DatabaseView
+            <div className="space-y-4 animate-codex-fade-up">
+              <CategorySliderRibbon
+                categories={categories}
+                categoryCounts={categoryCounts}
+                totalEntries={totalEntries}
+                selectedCategoryId={selectedCategoryId || ""}
+                onSelectCategory={(cid) => {
+                  setSelectedCategoryId(cid || null);
+                  setPage(1);
+                }}
+              />
+              <DatabaseView
               workspaceId={activeWorkspaceId}
               entries={entries}
               total={totalEntries}
@@ -826,6 +863,7 @@ export function CodexApp() {
               onOpenBookMode={() => setBookModeOpen(true)}
               onOpenRandom={handleOpenRandom}
             />
+            </div>
           ) : section === "omniverse" ? (
             <V3OmniverseStudioView
               workspaceId={activeWorkspaceId}

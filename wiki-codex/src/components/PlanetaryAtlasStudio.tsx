@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BarChart3,
   Bookmark,
   BookOpen,
   CheckSquare,
@@ -408,6 +409,34 @@ export function PlanetaryAtlasStudio({
 
   const [compareIds, setCompareIds] = useState<string[]>(["nation-1", "nation-2", "nation-3"]);
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState<boolean>(false);
+
+  const continentStats = useMemo(() => {
+    const entryTitlesNorm = entries.map((e) => normalizeSearchText(e.title));
+    const map = new Map<
+      ContinentId,
+      { id: ContinentId; count: number; pop: number; area: number; wikiCount: number }
+    >();
+    for (const n of bundle.nations) {
+      const cur = map.get(n.continent) ?? {
+        id: n.continent,
+        count: 0,
+        pop: 0,
+        area: 0,
+        wikiCount: 0,
+      };
+      cur.count += 1;
+      cur.pop += n.population;
+      cur.area += n.areaKm2;
+      const n1 = normalizeSearchText(n.name);
+      const n2 = normalizeSearchText(n.shortName);
+      if (entryTitlesNorm.some((t) => t === n1 || t.includes(n1) || (n2.length >= 4 && t.includes(n2)))) {
+        cur.wikiCount += 1;
+      }
+      map.set(n.continent, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [bundle.nations, entries]);
 
   // Geographic Ruler & Dijkstra Pathfinder
   const [rulerMode, setRulerMode] = useState<boolean>(false);
@@ -503,6 +532,15 @@ export function PlanetaryAtlasStudio({
     [eraNations, viewportBounds],
   );
 
+  // Label size selector (larger, clearer default "md") & smooth camera animation ref
+  const [labelSize, setLabelSize] = useState<"sm" | "md" | "lg">("md");
+  const labelScale = labelSize === "lg" ? 1.45 : labelSize === "md" ? 1.24 : 1.0;
+  const flyAnimRef = useRef<number | null>(null);
+  const zoomRef = useRef<number>(zoom);
+  const panRef = useRef<{ x: number; y: number }>(pan);
+  zoomRef.current = zoom;
+  panRef.current = pan;
+
   // Zero-overlap labels in screen-space virtual coordinates (paused during fast drag for 60fps)
   const placedLabels = useMemo(() => {
     if (!layers.labels || isDragging) return [];
@@ -520,6 +558,7 @@ export function PlanetaryAtlasStudio({
       selectedId: selectedNationId,
       hoveredId: hoveredNationId,
       highlightedIds: highlighted,
+      labelScale,
     });
   }, [
     layers.labels,
@@ -536,6 +575,7 @@ export function PlanetaryAtlasStudio({
     selectedNationId,
     hoveredNationId,
     highlightedPathSet,
+    labelScale,
   ]);
 
   const rulerReport = useMemo(
@@ -543,17 +583,39 @@ export function PlanetaryAtlasStudio({
     [rulerPoints, bundle.circumferenceKm],
   );
 
+  // Smooth Animated Fly-To (cubic ease-out ~380ms)
   const flyToPoint = useCallback(
     (nx: number, ny: number, targetZoom = 3.2) => {
+      if (flyAnimRef.current !== null) {
+        cancelAnimationFrame(flyAnimRef.current);
+        flyAnimRef.current = null;
+      }
       const clampedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, targetZoom));
-      setZoom(clampedZoom);
-      setPan(
-        clampPan(
-          -(nx - 0.5) * W * clampedZoom,
-          -(ny - 0.5) * H * clampedZoom,
-          clampedZoom,
-        ),
+      const targetPan = clampPan(
+        -(nx - 0.5) * W * clampedZoom,
+        -(ny - 0.5) * H * clampedZoom,
+        clampedZoom,
       );
+      const startZoom = zoomRef.current;
+      const startPan = panRef.current;
+      const startTime = performance.now();
+      const durationMs = 380;
+
+      const step = (now: number) => {
+        const t = Math.min(1, (now - startTime) / durationMs);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const curZ = startZoom + (clampedZoom - startZoom) * ease;
+        const curX = startPan.x + (targetPan.x - startPan.x) * ease;
+        const curY = startPan.y + (targetPan.y - startPan.y) * ease;
+        setZoom(Number(curZ.toFixed(3)));
+        setPan({ x: curX, y: curY });
+        if (t < 1) {
+          flyAnimRef.current = requestAnimationFrame(step);
+        } else {
+          flyAnimRef.current = null;
+        }
+      };
+      flyAnimRef.current = requestAnimationFrame(step);
     },
     [W, H, MAX_ZOOM, MIN_ZOOM, clampPan],
   );
@@ -996,6 +1058,16 @@ export function PlanetaryAtlasStudio({
 
           <button
             type="button"
+            onClick={() => setShowAnalyticsModal(true)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800"
+            title="Thống kê 8 Lục địa & Độ phủ Hồ sơ Wiki"
+          >
+            <BarChart3 className="h-3.5 w-3.5 text-cyan-400" />
+            Thống kê
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowCompareModal(true)}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800"
           >
@@ -1108,6 +1180,18 @@ export function PlanetaryAtlasStudio({
               <span>{label}</span>
             </label>
           ))}
+          {layers.labels && (
+            <select
+              value={labelSize}
+              onChange={(e) => setLabelSize(e.target.value as "sm" | "md" | "lg")}
+              className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] text-cyan-200"
+              title="Cỡ chữ nhãn tên quốc gia trên bản đồ"
+            >
+              <option value="sm">Nhãn Nhỏ</option>
+              <option value="md">Nhãn Vừa (Rõ)</option>
+              <option value="lg">Nhãn Lớn</option>
+            </select>
+          )}
         </div>
       </div>
 
@@ -1539,54 +1623,63 @@ export function PlanetaryAtlasStudio({
               )}
             </g>
 
-            {/* Screen-Space Zero-Overlap Nation Labels (never distorted by zoom) */}
+            {/* Screen-Space Zero-Overlap Nation Labels (crisp, larger & adjustable) */}
             {layers.labels && (
               <g pointerEvents="none">
-                {placedLabels.map((m) => (
-                  <g key={`lbl-${m.nation.id}`}>
-                    <circle
-                      cx={m.sx}
-                      cy={m.sy}
-                      r={m.nation.id === selectedNationId ? 4.5 : m.nation.lodTier === 0 ? 3.5 : 2.1}
-                      fill={m.nation.id === selectedNationId ? "#ffffff" : "#f8fafc"}
-                      stroke="#0f172a"
-                      strokeWidth={1.2}
-                    />
-                    {m.showLabel && (
-                      <g transform={`translate(${m.sx}, ${m.sy - 9})`}>
-                        <rect
-                          x={-(m.box.x2 - m.box.x1) / 2}
-                          y={-15}
-                          width={m.box.x2 - m.box.x1}
-                          height={18}
-                          rx={4}
-                          fill={
-                            m.nation.id === selectedNationId
-                              ? "rgba(8, 145, 178, 0.94)"
-                              : m.nation.isTriBorder
-                                ? "rgba(180, 83, 9, 0.9)"
-                                : "rgba(15, 23, 42, 0.84)"
-                          }
-                          stroke={
-                            m.nation.id === selectedNationId
-                              ? "#67e8f9"
-                              : "rgba(148, 163, 184, 0.35)"
-                          }
-                          strokeWidth={0.9}
-                        />
-                        <text
-                          textAnchor="middle"
-                          y={-3}
-                          fill="#f8fafc"
-                          fontSize={10.5}
-                          fontWeight={m.nation.lodTier === 0 ? 700 : 500}
-                        >
-                          #{m.nation.nationNum} {m.nation.shortName}
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                ))}
+                {placedLabels.map((m) => {
+                  const bw = m.box.x2 - m.box.x1;
+                  const bh = m.box.y2 - m.box.y1;
+                  const tierBoost = m.nation.lodTier === 0 ? 1.12 : 1.0;
+                  const fontSize = Number((11.5 * labelScale * tierBoost).toFixed(1));
+                  return (
+                    <g key={`lbl-${m.nation.id}`}>
+                      <circle
+                        cx={m.sx}
+                        cy={m.sy}
+                        r={m.nation.id === selectedNationId ? 5.2 : m.nation.lodTier === 0 ? 4.2 : 2.5}
+                        fill={m.nation.id === selectedNationId ? "#ffffff" : "#f8fafc"}
+                        stroke="#0f172a"
+                        strokeWidth={1.4}
+                      />
+                      {m.showLabel && (
+                        <g transform={`translate(${m.sx}, ${m.sy - 9})`}>
+                          <rect
+                            x={-bw / 2}
+                            y={-bh + 3}
+                            width={bw}
+                            height={bh}
+                            rx={6}
+                            fill={
+                              m.nation.id === selectedNationId
+                                ? "rgba(8, 145, 178, 0.96)"
+                                : m.nation.isTriBorder
+                                  ? "rgba(180, 83, 9, 0.92)"
+                                  : "rgba(10, 17, 34, 0.88)"
+                            }
+                            stroke={
+                              m.nation.id === selectedNationId
+                                ? "#67e8f9"
+                                : m.nation.isTriBorder
+                                  ? "#fcd34d"
+                                  : "rgba(148, 163, 184, 0.48)"
+                            }
+                            strokeWidth={1.1}
+                          />
+                          <text
+                            textAnchor="middle"
+                            y={-bh * 0.28 + 3}
+                            fill="#ffffff"
+                            fontSize={fontSize}
+                            fontWeight={m.nation.lodTier === 0 ? 700 : 600}
+                            style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}
+                          >
+                            #{m.nation.nationNum} {m.nation.shortName}
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             )}
           </svg>
@@ -2107,6 +2200,78 @@ export function PlanetaryAtlasStudio({
           <span className="font-mono text-[11px] text-slate-300">{activeEra.yearRange}</span>
         </div>
       </div>
+
+      {/* Continent & Wiki Coverage Analytics Modal */}
+      {showAnalyticsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="animate-codex-scale-in max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-cyan-400" />
+                <h3 className="font-semibold text-white">
+                  Thống kê 8 Lục địa & Độ phủ Hồ sơ Wiki (360 Quốc gia)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAnalyticsModal(false)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-auto p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {continentStats.map((st) => {
+                const pct = st.count > 0 ? Math.round((st.wikiCount / st.count) * 100) : 0;
+                return (
+                  <div
+                    key={st.id}
+                    className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 space-y-2 codex-card-lift"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm text-white">
+                        {CONTINENT_NAME_VI[st.id]}
+                      </span>
+                      <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[11px] font-mono text-cyan-300">
+                        {st.count} QG
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 space-y-0.5">
+                      <div>Dân số: <b className="text-slate-200">{st.pop.toLocaleString("vi-VN")}</b></div>
+                      <div>Diện tích: <b className="text-slate-200">{st.area.toLocaleString("vi-VN")} km²</b></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                        <span>Độ phủ bài Wiki</span>
+                        <span className="text-emerald-300 font-mono">
+                          {st.wikiCount}/{st.count} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400"
+                          style={{ width: `${Math.max(pct, st.wikiCount > 0 ? 4 : 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterContinent(st.id);
+                        setShowFilterDrawer(true);
+                        setShowAnalyticsModal(false);
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 py-1 text-[11px] font-medium text-cyan-200 hover:bg-slate-800"
+                    >
+                      Lọc danh sách quốc gia →
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Multi-Nation Encyclopedic Comparison Modal */}
       {showCompareModal && (
