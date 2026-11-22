@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import {
   deletePublishTarget,
   executeOneClickPublish,
+  getPublishPreviewStats,
   loadState,
   upsertPublishTarget
 } from "@/db/repository";
@@ -19,9 +20,11 @@ export async function GET(request: Request) {
   const snapshots = state.publishSnapshots
     .filter((s) => !workspaceId || s.workspaceId === workspaceId)
     .slice(0, 20);
+  const stats = workspaceId ? await getPublishPreviewStats(workspaceId) : null;
   return jsonOk({
     targets: state.publishTargets,
-    snapshots
+    snapshots,
+    stats
   });
 }
 
@@ -56,13 +59,18 @@ export async function POST(request: Request) {
       workspaceId: body.workspaceId,
       publishedBy: user.name,
       note: body.note,
-      targetId: body.targetId
+      targetId: body.targetId,
+      autoPromoteDrafts: body.autoPromoteDrafts !== false,
+      includePrivate: Boolean(body.includePrivate),
+      publishAllCollections: body.publishAllCollections !== false
     });
 
-    // Revalidate public SEO portal immediately so public readers see latest changes
+    // Revalidate public SEO portal, sitemap & home immediately so public readers see latest changes
     try {
+      revalidatePath("/", "layout");
       revalidatePath("/public", "layout");
       revalidatePath(`/public/${snapshot.workspaceSlug}`, "layout");
+      revalidatePath("/sitemap.xml");
     } catch {
       // Safe fallback in test environment outside Next request lifecycle
     }

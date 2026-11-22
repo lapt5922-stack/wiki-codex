@@ -1355,7 +1355,12 @@ export function CodexApp() {
       )}
 
       {publishModalOpen && activeWorkspace && (
-        <PublishCenterModal workspace={activeWorkspace} canPublish={canEdit} onClose={() => setPublishModalOpen(false)} />
+        <PublishCenterModal
+          workspace={activeWorkspace}
+          canPublish={canEdit}
+          onClose={() => setPublishModalOpen(false)}
+          onPublished={refreshAll}
+        />
       )}
 
       {batchCsvOpen && (

@@ -43,16 +43,26 @@ export default async function PublicWorkspacePage({
     .filter((t) => t.workspaceId === ws.id)
     .sort((a, b) => a.sortYear - b.sortYear)
     .slice(0, 6);
+  const latestSnapshot = state.publishSnapshots.find((s) => s.workspaceId === ws.id);
 
   return (
     <div className="min-h-screen max-w-6xl mx-auto px-4 py-8 space-y-6">
       <header className="codex-card arcane-corners rounded-2xl p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <Link href="/public" className="text-[var(--accent)] hover:underline">
-            ← Tất cả Bộ Bách Khoa Công Khai
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/public" className="text-[var(--accent)] hover:underline">
+              ← Tất cả Bộ Bách Khoa Công Khai
+            </Link>
+            <Link
+              href="/"
+              className="px-2.5 py-0.5 rounded-full border border-[var(--border-strong)] bg-[var(--accent-soft)] text-[var(--accent)] hover:brightness-110"
+            >
+              ✦ Mở Bản đồ 360 &amp; Ứng dụng Đầy đủ
+            </Link>
+          </div>
           <span className="font-mono text-[var(--text-muted)]">
-            {paginated.total.toLocaleString("vi-VN")} hồ sơ công khai · V2.0
+            {paginated.total.toLocaleString("vi-VN")} hồ sơ công khai
+            {latestSnapshot ? ` · Bản v${latestSnapshot.version}` : " · Live"}
           </span>
         </div>
         <div className="flex items-start gap-3">
@@ -184,6 +194,19 @@ export default async function PublicWorkspacePage({
                 <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
                   {entry.summary || entry.subtitle}
                 </p>
+                {entry.economySummary && (
+                  <div className="mt-auto pt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      Ⱥ {entry.economySummary.currencyCode}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">
+                      Học vấn {entry.economySummary.literacyRate}%
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">
+                      Hạ tầng {entry.economySummary.infrastructureRate}%
+                    </span>
+                  </div>
+                )}
               </div>
             </Link>
           );

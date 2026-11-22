@@ -827,6 +827,8 @@ export interface PublishSnapshot {
   version: number;
   publishedBy: string;
   publicEntryCount: number;
+  promotedCount?: number;
+  syncedCollectionsCount?: number;
   webhookTriggered: boolean;
   webhookStatus: string;
   publicUrl: string;

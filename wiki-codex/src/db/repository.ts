@@ -1836,18 +1836,92 @@ export async function deletePublishTarget(id: string): Promise<boolean> {
   return state.publishTargets.length < before;
 }
 
+export async function getPublishPreviewStats(workspaceId: string) {
+  const state = await loadState();
+  const activeEntries = state.entries.filter((e) => e.workspaceId === workspaceId && !e.deletedAt);
+  const lastSnap = state.publishSnapshots.find((s) => s.workspaceId === workspaceId);
+  const lastPushMs = lastSnap ? new Date(lastSnap.createdAt).getTime() : 0;
+
+  const publishedPublicCount = activeEntries.filter(
+    (e) => e.visibility === "public" && e.status === "published"
+  ).length;
+  const draftOrReviewPublicCount = activeEntries.filter(
+    (e) => e.visibility === "public" && (e.status === "draft" || e.status === "review")
+  ).length;
+  const privateCount = activeEntries.filter((e) => e.visibility === "private").length;
+  const changedSinceLastPush = lastPushMs
+    ? activeEntries.filter((e) => new Date(e.updatedAt).getTime() > lastPushMs).length
+    : activeEntries.length;
+  const economyCount = activeEntries.filter((e) => Boolean(e.economyProfile)).length;
+  const categoriesCount = state.categories.filter((c) => c.workspaceId === workspaceId && !c.deletedAt).length;
+  const collectionsCount = state.collections.filter((c) => c.workspaceId === workspaceId).length;
+  const timelineCount = state.timelineEvents.filter((t) => t.workspaceId === workspaceId).length;
+
+  return {
+    totalActiveEntries: activeEntries.length,
+    publishedPublicCount,
+    draftOrReviewPublicCount,
+    privateCount,
+    changedSinceLastPush,
+    economyCount,
+    categoriesCount,
+    collectionsCount,
+    timelineCount,
+    lastVersion: lastSnap?.version ?? 0,
+    lastPublishedAt: lastSnap?.createdAt ?? null
+  };
+}
+
 export async function executeOneClickPublish(input: {
   workspaceId: string;
   publishedBy: string;
   note?: string;
   targetId?: string;
+  autoPromoteDrafts?: boolean;
+  includePrivate?: boolean;
+  publishAllCollections?: boolean;
 }): Promise<PublishSnapshot> {
   const state = await loadState();
   const ws = state.workspaces.find((w) => w.id === input.workspaceId);
   if (!ws) throw new Error("Không tìm thấy không gian cần xuất bản.");
 
+  const now = new Date().toISOString();
   ws.isPublic = true;
-  ws.updatedAt = new Date().toISOString();
+  ws.updatedAt = now;
+
+  // Auto-sync everything currently on the web workspace to public web
+  const autoPromoteDrafts = input.autoPromoteDrafts !== false;
+  const includePrivate = Boolean(input.includePrivate);
+  const publishAllCollections = input.publishAllCollections !== false;
+
+  let promotedCount = 0;
+  for (const e of state.entries) {
+    if (e.workspaceId !== ws.id || e.deletedAt) continue;
+    let changed = false;
+    if (includePrivate && e.visibility === "private") {
+      e.visibility = "public";
+      changed = true;
+    }
+    if (autoPromoteDrafts && e.visibility === "public" && (e.status === "draft" || e.status === "review")) {
+      e.status = "published";
+      changed = true;
+    }
+    if (changed) {
+      e.updatedAt = now;
+      e.updatedBy = input.publishedBy;
+      promotedCount++;
+    }
+  }
+
+  let syncedCollectionsCount = 0;
+  if (publishAllCollections) {
+    for (const col of state.collections) {
+      if (col.workspaceId === ws.id && !col.isPublic) {
+        col.isPublic = true;
+        syncedCollectionsCount++;
+      }
+    }
+  }
 
   const publicEntryCount = state.entries.filter(
     (e) =>
@@ -1870,9 +1944,16 @@ export async function executeOneClickPublish(input: {
   const publicUrl = baseUrl ? `${baseUrl}/public/${ws.slug}` : `/public/${ws.slug}`;
 
   let webhookTriggered = false;
-  let webhookStatus = "Đã xuất bản tức thì lên Cổng Công Khai (/public)";
+  let webhookStatus =
+    promotedCount > 0
+      ? `Đã tự động đồng bộ ${promotedCount} hồ sơ mới/nháp và đẩy toàn bộ ${publicEntryCount} hồ sơ lên Web Công khai (/public/${ws.slug})`
+      : `Đã đồng bộ tức thì toàn bộ ${publicEntryCount} hồ sơ hiện tại lên Web Công khai (/public/${ws.slug})`;
 
-  const hookUrl = target?.webhookUrl || process.env.DEPLOY_WEBHOOK_URL || "";
+  const hookUrl =
+    target?.webhookUrl ||
+    process.env.DEPLOY_WEBHOOK_URL ||
+    process.env.RENDER_DEPLOY_HOOK_URL ||
+    "";
   if (hookUrl && /^https?:\/\//i.test(hookUrl)) {
     webhookTriggered = true;
     try {
@@ -1911,10 +1992,12 @@ export async function executeOneClickPublish(input: {
     version: nextVersion,
     publishedBy: input.publishedBy,
     publicEntryCount,
+    promotedCount,
+    syncedCollectionsCount,
     webhookTriggered,
     webhookStatus,
     publicUrl,
-    note: input.note?.trim() || `Xuất bản tự động v${nextVersion} (${publicEntryCount} hồ sơ công khai)`,
+    note: input.note?.trim() || `Xuất bản tự động v${nextVersion} (${publicEntryCount} hồ sơ công khai${promotedCount > 0 ? `, +${promotedCount} mới đẩy` : ""})`,
     createdAt: new Date().toISOString()
   };
 
