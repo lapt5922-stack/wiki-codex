@@ -14,6 +14,7 @@ export function getPostgresPool(): Pool | null {
   const useSsl =
     process.env.DATABASE_SSL === "true" ||
     url.includes("sslmode=require") ||
+    url.includes("render.com") ||
     url.includes("neon.tech") ||
     url.includes("supabase.co") ||
     url.includes("supabase.com");

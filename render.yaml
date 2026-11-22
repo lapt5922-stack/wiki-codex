@@ -5,15 +5,13 @@ services:
     plan: free
     region: singapore
     rootDir: wiki-codex
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start:render
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: "20"
-      - key: NODE_ENV
-        value: production
       - key: SESSION_SECRET
         generateValue: true
       - key: DATABASE_URL
