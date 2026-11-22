@@ -570,14 +570,106 @@ export function computeLatitudeTemperatureC(
   return Number((solarBaseC + lapseRateC + biomeOffset + coastalMod).toFixed(1));
 }
 
+export type SeasonId = "SPRING" | "SUMMER" | "AUTUMN" | "WINTER";
+
+export const SEASON_META: Record<SeasonId, { label: string; shortLabel: string }> = {
+  SPRING: { label: "Mùa Xuân", shortLabel: "Xuân" },
+  SUMMER: { label: "Mùa Hạ", shortLabel: "Hạ" },
+  AUTUMN: { label: "Mùa Thu", shortLabel: "Thu" },
+  WINTER: { label: "Mùa Đông", shortLabel: "Đông" },
+};
+
+/**
+ * Computes seasonal temperature shift by hemisphere (Northern y < 0.5 vs Southern y > 0.5).
+ */
+export function computeSeasonalTempC(
+  nation: Pick<PlanetaryNation, "y" | "avgTempC">,
+  season: SeasonId,
+): number {
+  const northSign = nation.y < 0.5 ? 1 : -1;
+  const latFactor = Math.min(1, Math.abs(nation.y - 0.5) * 2.2);
+  let delta = 0;
+  if (season === "SUMMER") delta = 9.5 * latFactor * northSign;
+  else if (season === "WINTER") delta = -10.5 * latFactor * northSign;
+  else if (season === "SPRING") delta = 1.5 * latFactor * northSign;
+  else if (season === "AUTUMN") delta = -1.5 * latFactor * northSign;
+  return Number((nation.avgTempC + delta).toFixed(1));
+}
+
+/**
+ * Computes enclosed geographic polygon area in km² using the shoelace formula.
+ */
+export function computePolygonAreaKm2(
+  points: Point2D[],
+  circumferenceKm = PLANET_CIRCUMFERENCE_KM,
+): number {
+  if (points.length < 3) return 0;
+  const widthKm = circumferenceKm;
+  const heightKm = circumferenceKm * 0.5;
+  let sum = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    sum += a.x * widthKm * (b.y * heightKm) - b.x * widthKm * (a.y * heightKm);
+  }
+  return Math.round(Math.abs(sum) * 0.5);
+}
+
+/**
+ * Computes 2-hop geopolitical neighborhood rings around a nation.
+ */
+export function getTwoHopNeighbors(
+  nations: PlanetaryNation[],
+  centerId: string,
+): { hop1: Set<string>; hop2: Set<string> } {
+  const byId = new Map<string, PlanetaryNation>();
+  for (const n of nations) byId.set(n.id, n);
+  const center = byId.get(centerId);
+  const hop1 = new Set<string>();
+  const hop2 = new Set<string>();
+  if (!center) return { hop1, hop2 };
+
+  for (const nbId of center.neighbors) {
+    if (nbId !== centerId) hop1.add(nbId);
+  }
+  for (const h1 of hop1) {
+    const n1 = byId.get(h1);
+    if (!n1) continue;
+    for (const nb2 of n1.neighbors) {
+      if (nb2 !== centerId && !hop1.has(nb2)) {
+        hop2.add(nb2);
+      }
+    }
+  }
+  return { hop1, hop2 };
+}
+
+/**
+ * Resolves demographic population density heatmap color (people / km²).
+ */
+export function resolveDensityHeatColor(nation: Pick<PlanetaryNation, "population" | "areaKm2">): string {
+  const density = nation.population / Math.max(1, nation.areaKm2);
+  if (density >= 120) return "#ef4444";
+  if (density >= 70) return "#f97316";
+  if (density >= 40) return "#facc15";
+  if (density >= 20) return "#4ade80";
+  if (density >= 8) return "#38bdf8";
+  return "#1e3a5f";
+}
+
 export function resolveNationLensColor(
   nation: PlanetaryNation,
   lens: AtlasWikiLens,
   options?: {
     selectedNationId?: string | null;
     diplomacy?: PlanetaryDiplomacy[];
+    season?: SeasonId;
+    densityHeatmap?: boolean;
   },
 ): string {
+  if (options?.densityHeatmap) {
+    return resolveDensityHeatColor(nation);
+  }
   switch (lens) {
     case "POLITICAL":
       return nation.color;
@@ -593,7 +685,7 @@ export function resolveNationLensColor(
       return "#cbd5e1";
     }
     case "CLIMATE": {
-      const t = nation.avgTempC;
+      const t = options?.season ? computeSeasonalTempC(nation, options.season) : nation.avgTempC;
       if (t <= -10) return "#3b82f6";
       if (t <= 0) return "#38bdf8";
       if (t <= 10) return "#2dd4bf";

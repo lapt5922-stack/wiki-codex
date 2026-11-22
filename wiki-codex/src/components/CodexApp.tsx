@@ -206,6 +206,30 @@ export function CodexApp() {
   const [matrixIds, setMatrixIds] = useState<string[] | null>(null);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [atlasFocusNationId, setAtlasFocusNationId] = useState<string | null>(null);
+  const [perfMode, setPerfMode] = useState<"vivid" | "lite">("vivid");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("codex_perf_mode_v1");
+      if (saved === "lite" || saved === "vivid") {
+        setPerfMode(saved);
+        document.documentElement.dataset.perf = saved;
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const togglePerfMode = () => {
+    const next = perfMode === "vivid" ? "lite" : "vivid";
+    setPerfMode(next);
+    document.documentElement.dataset.perf = next;
+    try {
+      window.localStorage.setItem("codex_perf_mode_v1", next);
+    } catch {
+      // ignore
+    }
+  };
 
   const canEdit = user.role === "admin" || user.role === "editor";
   const isAdmin = user.role === "admin";
@@ -508,7 +532,8 @@ export function CodexApp() {
   const visibleNavItems = navItems.filter((item) => !item.editorOnly || canEdit);
 
   return (
-    <div className="min-h-screen flex flex-col pb-20 lg:pb-0">
+    <div className="relative min-h-screen flex flex-col pb-20 lg:pb-0">
+      <div className="codex-aurora-bg no-print" />
       {/* Top Arcane Bar */}
       <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] backdrop-blur-xl no-print">
         <div className="max-w-[1720px] mx-auto px-3 sm:px-5 h-14 sm:h-15 flex items-center justify-between gap-2">
@@ -608,6 +633,24 @@ export function CodexApp() {
 
             <button type="button" title="Xuất / Nhập dữ liệu" onClick={() => setImportExportOpen(true)} className="p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer">
               <Download className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={togglePerfMode}
+              title={
+                perfMode === "vivid"
+                  ? "Đang bật Giao diện Sống động 60 FPS — bấm để chuyển Chế độ Siêu nhẹ tiết kiệm pin"
+                  : "Đang bật Chế độ Siêu nhẹ — bấm để bật lại Giao diện Sống động"
+              }
+              className={`codex-press hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer ${
+                perfMode === "vivid"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">{perfMode === "vivid" ? "Sống động" : "Siêu nhẹ"}</span>
             </button>
 
             <button type="button" title="Phím tắt (?)" onClick={() => setShortcutsOpen(true)} className="hidden md:flex p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer">

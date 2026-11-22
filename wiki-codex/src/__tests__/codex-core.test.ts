@@ -772,7 +772,11 @@ import {
 } from "@/lib/planetary-atlas/generator";
 import {
   computeExpeditionTravel,
+  computePolygonAreaKm2,
+  computeSeasonalTempC,
   findShortestNationPath,
+  getTwoHopNeighbors,
+  resolveDensityHeatColor,
   sampleRouteElevationProfile,
 } from "@/lib/planetary-atlas/climate-geology";
 import { selectZeroOverlapLabels } from "@/lib/planetary-atlas/lod-engine";
@@ -901,6 +905,30 @@ describe("14. Mega-Planet World Atlas (360 Quốc gia, Voronoi, Zero-Overlap LOD
     expect(profile[0].distKm).toBe(0);
     expect(profile[23].distKm).toBe(25600);
     expect(profile.every((p) => p.elevationM > 0)).toBe(true);
+
+    // Đợt 1 Pro Cartography: Polygon Area (km2), 4-Season Climate, 2-Hop Rings, Density Heatmap
+    const area = computePolygonAreaKm2(
+      [
+        { x: 0.1, y: 0.1 },
+        { x: 0.2, y: 0.1 },
+        { x: 0.2, y: 0.2 },
+        { x: 0.1, y: 0.2 }
+      ],
+      64000
+    );
+    expect(area).toBe(20_480_000);
+
+    const valoria = bundle.nations.find((n) => n.nationNum === 1)!;
+    const summerT = computeSeasonalTempC(valoria, "SUMMER");
+    const winterT = computeSeasonalTempC(valoria, "WINTER");
+    expect(summerT).toBeGreaterThan(winterT);
+
+    const rings = getTwoHopNeighbors(bundle.nations, "nation-1");
+    expect(rings.hop1.size).toBeGreaterThan(0);
+    expect(rings.hop2.size).toBeGreaterThan(0);
+    expect(rings.hop2.has("nation-1")).toBe(false);
+
+    expect(resolveDensityHeatColor({ population: 5_000_000, areaKm2: 20_000 })).toBe("#ef4444");
   });
 
   it("pre-compute svgPath/bbox cho 360 quốc gia và sinh pixel nền địa hình 3D khớp 8 lục địa", () => {

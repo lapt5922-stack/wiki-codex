@@ -1119,16 +1119,37 @@ export function EntryDetailView({
         </div>
       </div>
 
-      {/* NEXT-GEN ENTITY HERO BANNER */}
-      <div className="codex-card arcane-corners rounded-2xl overflow-hidden">
+      {/* NEXT-GEN ENTITY HERO BANNER (#48 Biome Atmospheric Hero for 360 Nations) */}
+      <div className="codex-card codex-glass-luminous arcane-corners rounded-2xl overflow-hidden animate-codex-fade-up">
         <div
-          className="relative min-h-[150px] sm:min-h-[190px] flex flex-col justify-end p-5 sm:p-7"
+          className="relative min-h-[155px] sm:min-h-[200px] flex flex-col justify-end p-5 sm:p-7"
           style={{
             background: entry.coverImage
               ? undefined
-              : `radial-gradient(circle at 20% 20%, ${accent}33, transparent 55%), linear-gradient(135deg, var(--bg-elevated), var(--bg-base))`
+              : entry.id.startsWith("ent-nation-")
+                ? `radial-gradient(65% 85% at 15% 15%, ${accent}48, transparent 62%), radial-gradient(50% 70% at 88% 20%, rgba(56,189,248,0.22), transparent 65%), linear-gradient(135deg, #0a1428 0%, var(--bg-base) 100%)`
+                : `radial-gradient(circle at 20% 20%, ${accent}33, transparent 55%), linear-gradient(135deg, var(--bg-elevated), var(--bg-base))`
           }}
         >
+          {!entry.coverImage && entry.id.startsWith("ent-nation-") && (
+            <svg
+              viewBox="0 0 1200 220"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full opacity-25"
+            >
+              <path
+                d="M0,185 L140,120 L260,152 L420,76 L580,145 L740,62 L910,136 L1060,92 L1200,155 L1200,220 L0,220 Z"
+                fill={accent}
+                fillOpacity="0.28"
+              />
+              <path
+                d="M0,200 L210,148 L360,175 L540,118 L700,168 L880,110 L1040,162 L1200,138 L1200,220 L0,220 Z"
+                fill="#38bdf8"
+                fillOpacity="0.18"
+              />
+            </svg>
+          )}
           {entry.coverImage && (
             <>
               <img

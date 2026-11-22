@@ -23,6 +23,8 @@ import {
   Ruler,
   Scale,
   Search,
+  Sun,
+  Table2,
   X,
   ZoomIn,
   ZoomOut,
@@ -31,13 +33,18 @@ import { buildPlanetaryAtlasBundle } from "@/lib/planetary-atlas/generator";
 import {
   BIOME_META,
   DIPLOMACY_META,
+  SEASON_META,
   TIER_META,
   computeExpeditionTravel,
+  computePolygonAreaKm2,
   findShortestNationPath,
+  getTwoHopNeighbors,
   resolveNationLensColor,
   sampleRouteElevationProfile,
+  type SeasonId,
 } from "@/lib/planetary-atlas/climate-geology";
 import { CapitalCityBlueprintModal } from "./CapitalCityBlueprintModal";
+import { NationsSpreadsheetModal } from "./NationsSpreadsheetModal";
 import { PlanetaryGlobeView } from "./PlanetaryGlobeView";
 import { CONTINENT_NAME_VI } from "@/lib/planetary-atlas/nations-data";
 import {
@@ -159,7 +166,10 @@ interface NationPolygonsLayerProps {
   hoveredNationId: string | null;
   highlightedPathSet: Set<string>;
   isolatedNeighborSet: Set<string>;
+  twoHopRings: { hop1: Set<string>; hop2: Set<string> } | null;
   diplomacy: PlanetaryDiplomacy[];
+  season: SeasonId;
+  densityHeatmap: boolean;
   overlayOpacity: number;
   showTerrainBackdrop: boolean;
   strokeScale: number;
@@ -175,7 +185,10 @@ const NationPolygonsLayer = React.memo(function NationPolygonsLayer({
   hoveredNationId,
   highlightedPathSet,
   isolatedNeighborSet,
+  twoHopRings,
   diplomacy,
+  season,
+  densityHeatmap,
   overlayOpacity,
   showTerrainBackdrop,
   strokeScale,
@@ -191,6 +204,8 @@ const NationPolygonsLayer = React.memo(function NationPolygonsLayer({
         const isSelected = nation.id === selectedNationId;
         const isHovered = nation.id === hoveredNationId;
         const inPath = highlightedPathSet.has(nation.id);
+        const isHop1 = Boolean(twoHopRings?.hop1.has(nation.id));
+        const isHop2 = Boolean(twoHopRings?.hop2.has(nation.id));
         const isDimmed =
           displayMode === "ISOLATED_FOCUS" &&
           hasSelected &&
@@ -199,30 +214,38 @@ const NationPolygonsLayer = React.memo(function NationPolygonsLayer({
         const fillColor = resolveNationLensColor(nation, lens, {
           selectedNationId,
           diplomacy,
+          season,
+          densityHeatmap,
         });
 
         const fillOpacity = isDimmed
           ? 0.08
           : displayMode === "COLOR_MOSAIC"
             ? Math.min(0.9, baseFillOpacity + 0.28)
-            : isSelected || isHovered || inPath
+            : isSelected || isHovered || inPath || isHop1
               ? Math.min(0.88, baseFillOpacity + 0.32)
-              : baseFillOpacity;
+              : isHop2
+                ? Math.min(0.78, baseFillOpacity + 0.16)
+                : baseFillOpacity;
 
         const strokeColor = isSelected
           ? "#ffffff"
           : inPath
             ? "#a855f7"
-            : isHovered
-              ? "#fde047"
-              : nation.isTriBorder
-                ? "#fbbf24"
-                : showTerrainBackdrop
-                  ? "rgba(15, 23, 42, 0.72)"
-                  : "#0f172a";
+            : isHop1
+              ? "#22d3ee"
+              : isHop2
+                ? "#c084fc"
+                : isHovered
+                  ? "#fde047"
+                  : nation.isTriBorder
+                    ? "#fbbf24"
+                    : showTerrainBackdrop
+                      ? "rgba(15, 23, 42, 0.72)"
+                      : "#0f172a";
 
         const strokeWidth =
-          (isSelected ? 2.8 : inPath ? 2.4 : isHovered ? 2.0 : 0.85) * strokeScale;
+          (isSelected ? 2.8 : inPath || isHop1 ? 2.3 : isHop2 || isHovered ? 1.8 : 0.85) * strokeScale;
 
         return (
           <path
@@ -413,8 +436,40 @@ export function PlanetaryAtlasStudio({
   const [compareIds, setCompareIds] = useState<string[]>(["nation-1", "nation-2", "nation-3"]);
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState<boolean>(false);
+  const [showSpreadsheetModal, setShowSpreadsheetModal] = useState<boolean>(false);
   const [globe3DMode, setGlobe3DMode] = useState<boolean>(false);
   const [blueprintNation, setBlueprintNation] = useState<PlanetaryNation | null>(null);
+
+  // Đợt 1 Pro Cartography state (#2 Day/Night, #3 Density Heatmap, #4 Season, #6 Area Tool, #7 Bookmarks, #10 2-Hop)
+  const [showDayNight, setShowDayNight] = useState<boolean>(false);
+  const [planetHour, setPlanetHour] = useState<number>(12);
+  const [densityHeatmap, setDensityHeatmap] = useState<boolean>(false);
+  const [season, setSeason] = useState<SeasonId>("SPRING");
+  const [showTwoHop, setShowTwoHop] = useState<boolean>(false);
+  const [areaMode, setAreaMode] = useState<boolean>(false);
+  const [areaPoints, setAreaPoints] = useState<Point2D[]>([]);
+
+  const PRESET_BOOKMARKS = useMemo(
+    () => [
+      { id: "bm-tri", name: "Ngã Ba Tam Biên", x: 0.608, y: 0.378, zoom: 4.4 },
+      { id: "bm-occ", name: "Occidentalis & Ngân Hà", x: 0.358, y: 0.34, zoom: 2.6 },
+      { id: "bm-ori", name: "Viễn Đông Orientis", x: 0.865, y: 0.355, zoom: 2.6 },
+      { id: "bm-oce", name: "Quần đảo Trung Dương", x: 0.435, y: 0.70, zoom: 2.5 },
+      { id: "bm-sol", name: "Lục địa Solara", x: 0.155, y: 0.68, zoom: 2.5 },
+      { id: "bm-aus", name: "Lục địa Australis", x: 0.785, y: 0.74, zoom: 2.5 },
+    ],
+    [],
+  );
+
+  const areaKm2 = useMemo(
+    () => computePolygonAreaKm2(areaPoints, bundle.circumferenceKm),
+    [areaPoints, bundle.circumferenceKm],
+  );
+
+  const twoHopRings = useMemo(() => {
+    if (!showTwoHop || !selectedNationId) return null;
+    return getTwoHopNeighbors(bundle.nations, selectedNationId);
+  }, [showTwoHop, selectedNationId, bundle.nations]);
 
   const continentStats = useMemo(() => {
     const entryTitlesNorm = entries.map((e) => normalizeSearchText(e.title));
@@ -829,19 +884,50 @@ export function PlanetaryAtlasStudio({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [lens]);
 
+  const handleExportPng2K = useCallback(() => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+    const raw = new XMLSerializer().serializeToString(svgEl);
+    const svgBlob = new Blob([raw], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 2400;
+      canvas.height = 1350;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#061326";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((pngBlob) => {
+          if (!pngBlob) return;
+          const pngUrl = URL.createObjectURL(pngBlob);
+          const a = document.createElement("a");
+          a.href = pngUrl;
+          a.download = `aethelgard-atlas-2k-${lens.toLowerCase()}.png`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
+        }, "image/png");
+      }
+      URL.revokeObjectURL(svgUrl);
+    };
+    img.src = svgUrl;
+  }, [lens]);
+
   const handleNationSelect = useCallback(
     (id: string, e: React.MouseEvent<SVGPathElement>) => {
-      if (rulerMode || pinMode || dragRef.current.moved) return;
+      if (rulerMode || pinMode || areaMode || dragRef.current.moved) return;
       e.stopPropagation();
       setSelectedNationId(id);
     },
-    [rulerMode, pinMode],
+    [rulerMode, pinMode, areaMode],
   );
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
       if (dragRef.current.moved) return;
-      if (!rulerMode && !pinMode) return;
+      if (!rulerMode && !pinMode && !areaMode) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const vx = ((e.clientX - rect.left) / rect.width) * W;
       const vy = ((e.clientY - rect.top) / rect.height) * H;
@@ -851,6 +937,8 @@ export function PlanetaryAtlasStudio({
 
       if (rulerMode) {
         setRulerPoints((prev) => [...prev, { x: Number(nx.toFixed(4)), y: Number(ny.toFixed(4)) }]);
+      } else if (areaMode) {
+        setAreaPoints((prev) => [...prev, { x: Number(nx.toFixed(4)), y: Number(ny.toFixed(4)) }]);
       } else if (pinMode) {
         const label = window.prompt("Nhập tên ghi chú / địa điểm cá nhân trên hành tinh:", "Địa điểm nghiên cứu");
         if (label && label.trim()) {
@@ -867,7 +955,7 @@ export function PlanetaryAtlasStudio({
         setPinMode(false);
       }
     },
-    [rulerMode, pinMode, W, H, pan.x, pan.y, zoom, personalPins, savePersonalPins],
+    [rulerMode, pinMode, areaMode, W, H, pan.x, pan.y, zoom, personalPins, savePersonalPins],
   );
 
   const toggleCompare = useCallback((nationId: string) => {
@@ -1055,6 +1143,44 @@ export function PlanetaryAtlasStudio({
 
           <button
             type="button"
+            onClick={() => {
+              setAreaMode((v) => !v);
+              setRulerMode(false);
+              setPinMode(false);
+              if (areaMode) setAreaPoints([]);
+            }}
+            className={`codex-press inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+              areaMode
+                ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+            }`}
+            title="Chấm 3+ điểm để đo diện tích vùng địa lý (km²)"
+          >
+            Đo Diện tích
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowSpreadsheetModal(true)}
+            className="codex-press inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
+            title="Mở Bảng Dữ Liệu 360 Quốc Gia & Xuất CSV/Excel"
+          >
+            <Table2 className="h-3.5 w-3.5" />
+            Bảng 360 & CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportPng2K}
+            className="codex-press inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer"
+            title="Xuất ảnh PNG độ phân giải 2K (2400×1350)"
+          >
+            <Download className="h-3.5 w-3.5 text-amber-300" />
+            PNG 2K
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportSvgSnapshot}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800"
             title="Xuất ảnh bản đồ hiện tại dưới dạng SVG sắc nét"
@@ -1128,6 +1254,86 @@ export function PlanetaryAtlasStudio({
               {opt.label}
             </button>
           ))}
+          {lens === "CLIMATE" && (
+            <select
+              value={season}
+              onChange={(e) => setSeason(e.target.value as SeasonId)}
+              className="ml-1 rounded-md border border-sky-500/50 bg-slate-900 px-1.5 py-0.5 text-[11px] text-sky-200"
+              title="Mô phỏng biến thiên nhiệt độ theo 4 mùa hành tinh"
+            >
+              {(Object.keys(SEASON_META) as SeasonId[]).map((sid) => (
+                <option key={sid} value={sid}>
+                  {SEASON_META[sid].label}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => setDensityHeatmap((v) => !v)}
+            className={`ml-1 rounded-md px-2 py-0.5 text-[11px] border transition cursor-pointer ${
+              densityHeatmap
+                ? "border-rose-400 bg-rose-500/20 text-rose-200 font-semibold"
+                : "border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-800"
+            }`}
+            title="Bật Bản đồ Nhiệt Mật độ Dân số (người/km²)"
+          >
+            Mật độ
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTwoHop((v) => !v)}
+            className={`rounded-md px-2 py-0.5 text-[11px] border transition cursor-pointer ${
+              showTwoHop
+                ? "border-violet-400 bg-violet-500/20 text-violet-200 font-semibold"
+                : "border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-800"
+            }`}
+            title="Tô sáng láng giềng Bậc 1 (xanh) và Bậc 2 (tím) quanh quốc gia đang chọn"
+          >
+            Vành đai 2 bậc
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDayNight((v) => !v)}
+            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] border transition cursor-pointer ${
+              showDayNight
+                ? "border-amber-400 bg-amber-500/20 text-amber-200 font-semibold"
+                : "border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-800"
+            }`}
+            title="Bật Vành đai Ngày/Đêm & Múi giờ hành tinh"
+          >
+            <Sun className="h-3 w-3" /> Ngày/Đêm
+          </button>
+          {showDayNight && (
+            <div className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-slate-900 px-1.5 py-0.5 text-[10px] text-amber-200">
+              <span className="font-mono">{String(planetHour).padStart(2, "0")}:00</span>
+              <input
+                type="range"
+                min={0}
+                max={23}
+                value={planetHour}
+                onChange={(e) => setPlanetHour(Number(e.target.value))}
+                className="w-16 accent-amber-400"
+              />
+            </div>
+          )}
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              const bm = PRESET_BOOKMARKS.find((b) => b.id === e.target.value);
+              if (bm) flyToPoint(bm.x, bm.y, bm.zoom);
+              e.target.value = "";
+            }}
+            className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] text-slate-200"
+            title="Bay nhanh tới các Góc nhìn Địa lý nổi bật"
+          >
+            <option value="" disabled>Góc nhìn nhanh…</option>
+            {PRESET_BOOKMARKS.map((bm) => (
+              <option key={bm.id} value={bm.id}>
+                ✦ {bm.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
@@ -1422,13 +1628,78 @@ export function PlanetaryAtlasStudio({
                 hoveredNationId={hoveredNationId}
                 highlightedPathSet={highlightedPathSet}
                 isolatedNeighborSet={isolatedNeighborSet}
+                twoHopRings={twoHopRings}
                 diplomacy={bundle.diplomacy}
+                season={season}
+                densityHeatmap={densityHeatmap}
                 overlayOpacity={overlayOpacity}
                 showTerrainBackdrop={showTerrainBackdrop}
                 strokeScale={1 / Math.sqrt(zoom)}
                 onHover={handleNationHover}
                 onSelect={handleNationSelect}
               />
+
+              {/* #2 Planetary Solar Terminator (Day/Night Shadow Band) */}
+              {showDayNight && (() => {
+                const nightCenterX = (((planetHour + 12) % 24) / 24) * W;
+                const halfW = W * 0.25;
+                const startX = nightCenterX - halfW;
+                return (
+                  <g pointerEvents="none">
+                    <rect
+                      x={startX}
+                      y={0}
+                      width={halfW * 2}
+                      height={H}
+                      fill="rgba(2, 6, 23, 0.46)"
+                    />
+                    {startX < 0 && (
+                      <rect
+                        x={startX + W}
+                        y={0}
+                        width={-startX}
+                        height={H}
+                        fill="rgba(2, 6, 23, 0.46)"
+                      />
+                    )}
+                    {startX + halfW * 2 > W && (
+                      <rect
+                        x={0}
+                        y={0}
+                        width={startX + halfW * 2 - W}
+                        height={H}
+                        fill="rgba(2, 6, 23, 0.46)"
+                      />
+                    )}
+                  </g>
+                );
+              })()}
+
+              {/* #6 Polygon Area Measurement Overlay */}
+              {areaPoints.length > 0 && (
+                <g pointerEvents="none">
+                  {areaPoints.length >= 3 && (
+                    <polygon
+                      points={polylineToSvgPoints(areaPoints, W, H)}
+                      fill="rgba(34, 211, 238, 0.22)"
+                      stroke="#22d3ee"
+                      strokeWidth={2.5 / Math.sqrt(zoom)}
+                      strokeDasharray="6 4"
+                    />
+                  )}
+                  {areaPoints.map((pt, idx) => (
+                    <circle
+                      key={`ap-${idx}`}
+                      cx={pt.x * W}
+                      cy={pt.y * H}
+                      r={4.8 / Math.sqrt(zoom)}
+                      fill="#22d3ee"
+                      stroke="#0f172a"
+                      strokeWidth={1.4 / Math.sqrt(zoom)}
+                    />
+                  ))}
+                </g>
+              )}
 
               {/* Layer 2: Topography (Mountain Ranges, Rivers, Ocean Currents, Volcanoes) */}
               {layers.topography && (
@@ -1790,6 +2061,47 @@ export function PlanetaryAtlasStudio({
               </div>
             )}
           </div>
+
+          {/* #6 Polygon Area Measurement Floating Panel */}
+          {areaMode && (
+            <div className="absolute bottom-3 left-3 z-20 w-76 rounded-xl border border-cyan-500/40 bg-slate-950/95 p-3 text-xs shadow-2xl backdrop-blur">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-cyan-300">
+                  Đo Diện Tích Vùng ({areaPoints.length} đỉnh)
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setAreaPoints([])}
+                    className="rounded bg-slate-800 px-2 py-0.5 text-[11px] text-slate-300 hover:bg-slate-700 cursor-pointer"
+                  >
+                    Xóa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAreaMode(false);
+                      setAreaPoints([]);
+                    }}
+                    className="rounded p-0.5 text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Nhấp tối thiểu 3 điểm trên bản đồ để khép kín vùng cần đo diện tích.
+              </p>
+              {areaPoints.length >= 3 && (
+                <div className="mt-2 rounded-lg bg-slate-900 p-2 text-center">
+                  <div className="text-[10px] text-slate-400">Diện tích vùng đã chọn</div>
+                  <div className="font-mono text-base font-bold text-cyan-300">
+                    {areaKm2.toLocaleString("vi-VN")} km²
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Geographic Ruler Floating Panel */}
           {rulerMode && (
@@ -2255,6 +2567,19 @@ export function PlanetaryAtlasStudio({
           <span className="font-mono text-[11px] text-slate-300">{activeEra.yearRange}</span>
         </div>
       </div>
+
+      {/* #38 & #42 Spreadsheet Table View + CSV Export Modal */}
+      {showSpreadsheetModal && (
+        <NationsSpreadsheetModal
+          nations={bundle.nations}
+          onClose={() => setShowSpreadsheetModal(false)}
+          onFocusOnMap={(n) => {
+            setGlobe3DMode(false);
+            flyToNation(n);
+          }}
+          onOpenWikiEntry={onOpenEntry}
+        />
+      )}
 
       {/* Procedural Capital City Blueprint Modal */}
       {blueprintNation && (
