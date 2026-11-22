@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { DeviceUIProvider } from "@/lib/device-ui";
 
 export const metadata: Metadata = {
   title: "Aethel Codex — Bách Khoa Tri Thức & Bản Đồ Đại Hành Tinh 360 Quốc Gia",
@@ -39,7 +40,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased overflow-x-hidden selection:bg-[var(--accent)]/30 selection:text-[var(--text-primary)]">
-        {children}
+        <DeviceUIProvider>{children}</DeviceUIProvider>
       </body>
     </html>
   );

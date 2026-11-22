@@ -90,6 +90,9 @@ import { V4WorldStudioView } from "./V4WorldStudioView";
 import { ChronicleReaderView } from "./ChronicleReaderView";
 import { BookPublisherModal } from "./BookPublisherModal";
 import { BatchCsvImportModal } from "./BatchCsvImportModal";
+import { DeviceUISwitcher, useDeviceUI } from "@/lib/device-ui";
+import { ReadingBreadcrumbTrail, type TrailItem } from "./EntityVisualWidgets";
+import { MultiNationEconomyComparatorModal } from "./MultiNationEconomyComparatorModal";
 import {
   AuthModal,
   ImportExportModal,
@@ -531,11 +534,68 @@ export function CodexApp() {
     { id: "trash", label: "Thùng rác", icon: Trash2, editorOnly: true }
   ];
 
+  const { isMobile, isTablet, isDesktop, isManualOverride, resolved, setMode } = useDeviceUI();
+  const [readingTrail, setReadingTrail] = useState<TrailItem[]>([]);
+  const [comparatorState, setComparatorState] = useState<{ open: boolean; initialId: string | null }>({
+    open: false,
+    initialId: null
+  });
+  const [atlasSplitEntryId, setAtlasSplitEntryId] = useState<string | null>(null);
+  const [atlasSplitMode, setAtlasSplitMode] = useState(false);
+
   const visibleNavItems = navItems.filter((item) => !item.editorOnly || canEdit);
 
+  // Feature #5: Track last 8 visited entries in Reading Breadcrumb Trail
+  useEffect(() => {
+    if (!activeEntryId) return;
+    const found = entries.find((e) => e.id === activeEntryId);
+    if (!found) return;
+    setReadingTrail((prev) => {
+      const next = [...prev.filter((x) => x.id !== found.id), { id: found.id, title: found.title, sigil: found.sigil }];
+      return next.slice(-8);
+    });
+  }, [activeEntryId, entries]);
+
+  // Feature #11: Pro Desktop Keyboard Navigation (J / K next-prev entry, G Atlas)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement | null)?.isContentEditable) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "g" || e.key === "G") {
+        setSection("atlas");
+        setActiveEntryId(null);
+      } else if ((e.key === "j" || e.key === "k") && activeEntryId && entries.length > 1) {
+        const idx = entries.findIndex((x) => x.id === activeEntryId);
+        if (idx >= 0) {
+          const nextIdx = e.key === "j" ? (idx + 1) % entries.length : (idx - 1 + entries.length) % entries.length;
+          handleOpenEntry(entries[nextIdx].id);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeEntryId, entries]);
+
   return (
-    <div className="relative min-h-screen flex flex-col pb-20 lg:pb-0">
+    <div className={`codex-device-shell relative min-h-screen flex flex-col ${isMobile ? "pb-20" : "pb-20 lg:pb-0"}`}>
       <div className="codex-aurora-bg no-print" />
+      {isManualOverride && (
+        <div className="no-print bg-amber-500/15 border-b border-amber-500/35 px-3 py-1 text-[11px] text-amber-200 flex items-center justify-between gap-2">
+          <span>
+            ✦ Đang dùng giao diện chế độ <strong>{resolved === "mobile" ? "Điện thoại (Mobile Studio)" : resolved === "tablet" ? "Máy tính bảng (Tablet Studio)" : "Desktop Pro"}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => setMode("auto")}
+            className="px-2 py-0.5 rounded bg-amber-500/25 hover:bg-amber-500/40 text-amber-100 font-semibold cursor-pointer"
+          >
+            Về Tự động
+          </button>
+        </div>
+      )}
       {/* Top Arcane Bar */}
       <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] backdrop-blur-xl no-print">
         <div className="max-w-[1720px] mx-auto px-3 sm:px-5 h-14 sm:h-15 flex items-center justify-between gap-2">
@@ -600,6 +660,7 @@ export function CodexApp() {
 
           {/* Right Controls */}
           <div className="flex items-center gap-1.5">
+            <DeviceUISwitcher compact={isMobile} />
             {activeWorkspace && (
               <button
                 type="button"
@@ -707,10 +768,10 @@ export function CodexApp() {
 
       {/* Main Workspace Shell (Adaptive Collapsible Desktop Rail) */}
       <div className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-5 py-4 flex gap-5 items-start">
-        {/* Desktop Sidebar (Full 280px or Slim 64px) */}
+        {/* Desktop / Tablet Sidebar (Hidden in Mobile Studio, Slim Rail on Tablet, Full on Desktop) */}
         <aside
-          className={`hidden lg:flex flex-col gap-3 sticky top-20 max-h-[calc(100vh-5.5rem)] shrink-0 transition-all duration-200 no-print ${
-            sidebarCollapsed ? "w-16" : "w-72"
+          className={`${isMobile ? "hidden" : "hidden lg:flex"} flex-col gap-3 sticky top-20 max-h-[calc(100vh-5.5rem)] shrink-0 transition-all duration-200 no-print ${
+            sidebarCollapsed || isTablet ? "w-16" : "w-72"
           }`}
         >
           <nav className="codex-card rounded-2xl p-1.5 space-y-0.5 overflow-y-auto">
@@ -815,25 +876,34 @@ export function CodexApp() {
           )}
 
           {activeEntryId ? (
-            <EntryDetailView
-              entryId={activeEntryId}
-              entryTypes={entryTypes}
-              categories={categories}
-              conlangs={conlangs}
-              canEdit={canEdit}
-              isBookmarked={bookmarks.includes(activeEntryId)}
-              onToggleBookmark={toggleBookmark}
-              onBack={() => setActiveEntryId(null)}
-              onOpenEntry={handleOpenEntry}
-              onEditEntry={(ent) => setEditorState({ open: true, entry: ent })}
-              onCreateRedLink={handleCreateRedLink}
-              onViewOnPlanetaryAtlas={(nationId) => {
-                setAtlasFocusNationId(nationId);
-                setSection("atlas");
-                setActiveEntryId(null);
-              }}
-              onMutated={refreshAll}
-            />
+            <div className="space-y-3">
+              <ReadingBreadcrumbTrail
+                trail={readingTrail}
+                currentEntryId={activeEntryId}
+                onSelectEntry={handleOpenEntry}
+              />
+              <EntryDetailView
+                entryId={activeEntryId}
+                entryTypes={entryTypes}
+                categories={categories}
+                conlangs={conlangs}
+                canEdit={canEdit}
+                isBookmarked={bookmarks.includes(activeEntryId)}
+                onToggleBookmark={toggleBookmark}
+                onBack={() => setActiveEntryId(null)}
+                onOpenEntry={handleOpenEntry}
+                onEditEntry={(ent) => setEditorState({ open: true, entry: ent })}
+                onCreateRedLink={handleCreateRedLink}
+                onViewOnPlanetaryAtlas={(nationId) => {
+                  setAtlasFocusNationId(nationId);
+                  setSection("atlas");
+                  setActiveEntryId(null);
+                }}
+                onOpenComparator={(id) => setComparatorState({ open: true, initialId: id })}
+                allCards={entries}
+                onMutated={refreshAll}
+              />
+            </div>
           ) : section === "home" && activeWorkspace ? (
             <div className="space-y-4 animate-codex-fade-up">
               <CategorySliderRibbon
@@ -975,39 +1045,92 @@ export function CodexApp() {
           ) : section === "calendar" ? (
             <CalendarView workspaceId={activeWorkspaceId} calendars={calendars} timelineEvents={timelineEvents} canEdit={canEdit} onRefresh={loadWorkspaceMeta} />
           ) : section === "atlas" ? (
-            <AtlasView
-              workspaceId={activeWorkspaceId}
-              entries={entries}
-              canEdit={canEdit}
-              initialFocusNationId={atlasFocusNationId}
-              onOpenEntry={handleOpenEntry}
-              onCreateEntryFromAtlas={(t, _s, md) =>
-                setEditorState({ open: true, entry: null, initialTitle: t, initialContent: md })
-              }
-              onCreateTaskForNation={async (title, description) => {
-                try {
-                  await fetch("/api/v2", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      resource: "task",
-                      data: {
-                        workspaceId: activeWorkspaceId,
-                        title,
-                        description,
-                        status: "todo",
-                        priority: "medium"
+            <div className="space-y-2">
+              {isDesktop && (
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-xs">
+                  <span className="text-[var(--text-muted)]">
+                    ✦ <strong>Desktop Pro:</strong> Chia đôi Màn hình để xem Bản đồ 360 bên trái &amp; Hồ sơ Kinh tế song song bên phải.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAtlasSplitMode((v) => !v);
+                      if (!atlasSplitEntryId) setAtlasSplitEntryId("ent-nation-1");
+                    }}
+                    className={`px-3 py-1 rounded-lg border font-semibold cursor-pointer transition-colors ${
+                      atlasSplitMode
+                        ? "bg-[var(--accent)] text-[#090e1c] border-[var(--accent)]"
+                        : "border-[var(--border-strong)] text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+                    }`}
+                  >
+                    {atlasSplitMode ? "✓ Đang chia đôi (Atlas + Wiki)" : "Chia đôi: Atlas + Wiki"}
+                  </button>
+                </div>
+              )}
+              <div className={isDesktop && atlasSplitMode ? "grid grid-cols-12 gap-4 items-start" : ""}>
+                <div className={isDesktop && atlasSplitMode ? "col-span-7" : ""}>
+                  <AtlasView
+                    workspaceId={activeWorkspaceId}
+                    entries={entries}
+                    canEdit={canEdit}
+                    initialFocusNationId={atlasFocusNationId}
+                    onOpenEntry={(id) => {
+                      if (isDesktop && atlasSplitMode) {
+                        setAtlasSplitEntryId(id);
+                      } else {
+                        handleOpenEntry(id);
                       }
-                    })
-                  });
-                  await loadWorkspaceMeta();
-                  setSection("health");
-                  setActiveEntryId(null);
-                } catch {
-                  // ignore network error
-                }
-              }}
-            />
+                    }}
+                    onCreateEntryFromAtlas={(t, _s, md) =>
+                      setEditorState({ open: true, entry: null, initialTitle: t, initialContent: md })
+                    }
+                    onCreateTaskForNation={async (title, description) => {
+                      try {
+                        await fetch("/api/v2", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            resource: "task",
+                            data: {
+                              workspaceId: activeWorkspaceId,
+                              title,
+                              description,
+                              status: "todo",
+                              priority: "medium"
+                            }
+                          })
+                        });
+                        await loadWorkspaceMeta();
+                        setSection("health");
+                        setActiveEntryId(null);
+                      } catch {
+                        // ignore network error
+                      }
+                    }}
+                  />
+                </div>
+                {isDesktop && atlasSplitMode && atlasSplitEntryId && (
+                  <div className="col-span-5 max-h-[82vh] overflow-y-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-base)] p-3">
+                    <EntryDetailView
+                      entryId={atlasSplitEntryId}
+                      entryTypes={entryTypes}
+                      categories={categories}
+                      conlangs={conlangs}
+                      canEdit={canEdit}
+                      isBookmarked={bookmarks.includes(atlasSplitEntryId)}
+                      onToggleBookmark={toggleBookmark}
+                      onBack={() => setAtlasSplitMode(false)}
+                      onOpenEntry={(id) => setAtlasSplitEntryId(id)}
+                      onEditEntry={(ent) => setEditorState({ open: true, entry: ent })}
+                      onCreateRedLink={handleCreateRedLink}
+                      onOpenComparator={(id) => setComparatorState({ open: true, initialId: id })}
+                      allCards={entries}
+                      onMutated={refreshAll}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           ) : section === "conlang" ? (
             <ConlangStudioView
               workspaceId={activeWorkspaceId}
@@ -1116,8 +1239,8 @@ export function CodexApp() {
         </div>
       )}
 
-      {/* Mobile-First Bottom Navigation Bar (44px+ touch targets + safe-area) */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-[var(--border-strong)] bg-[var(--bg-surface)] backdrop-blur-xl px-2 pt-1.5 pb-safe grid grid-cols-5 gap-1 no-print">
+      {/* Mobile-First Bottom Navigation Bar (48px+ touch targets + safe-area — also shown in manual Mobile override) */}
+      <nav className={`${isMobile ? "grid" : "lg:hidden grid"} fixed bottom-0 inset-x-0 z-30 border-t border-[var(--border-strong)] bg-[var(--bg-surface)] backdrop-blur-xl px-2 pt-1.5 pb-safe grid-cols-5 gap-1 no-print`}>
         {(
           [
             ["home", LayoutDashboard, "Đại Sảnh"],
@@ -1158,6 +1281,14 @@ export function CodexApp() {
         onConvertToEntry={(text) =>
           setEditorState({ open: true, entry: null, initialContent: text })
         }
+      />
+
+      {/* Feature #1: Multi-Nation Economy Comparator Modal */}
+      <MultiNationEconomyComparatorModal
+        open={comparatorState.open}
+        onClose={() => setComparatorState({ open: false, initialId: null })}
+        initialEntryId={comparatorState.initialId}
+        allCards={entries}
       />
 
       {/* Modals */}

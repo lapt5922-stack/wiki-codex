@@ -193,43 +193,53 @@ function clampByte(v: number): number {
 }
 
 /**
- * Sample RGB terrain color with 315-degree directional hillshading.
+ * Sample RGB terrain color with crisp 315-degree directional hillshading & seasonal snowline.
  */
 export function samplePlanetaryTerrainPixel(
   x: number,
   y: number,
   style: TerrainBackdropStyle = "PHYSICAL_RELIEF",
+  season: "SPRING" | "SUMMER" | "AUTUMN" | "WINTER" = "SPRING",
 ): TerrainSample {
   const base = computeTerrainHeight(x, y);
-  const eps = 0.0022;
+  const eps = 0.0020;
   const hx = computeTerrainHeight(Math.min(0.999, x + eps), y).h;
   const hy = computeTerrainHeight(x, Math.min(0.999, y + eps)).h;
 
-  // Directional hillshade from NW (315 deg)
-  const dx = (hx - base.h) * (base.isLand ? 14 : 4);
-  const dy = (hy - base.h) * (base.isLand ? 14 : 4);
-  const shadeRaw = (-dx * 0.65 - dy * 0.65 + 0.72) / Math.sqrt(dx * dx + dy * dy + 0.52);
-  const shade = 0.72 + Math.max(0, Math.min(1.35, shadeRaw)) * 0.46;
+  // Sharper directional hillshade from NW (315 deg) for vivid sculpted mountain ridges
+  const dx = (hx - base.h) * (base.isLand ? 18 : 4.5);
+  const dy = (hy - base.h) * (base.isLand ? 18 : 4.5);
+  const shadeRaw = (-dx * 0.68 - dy * 0.68 + 0.72) / Math.sqrt(dx * dx + dy * dy + 0.48);
+  const shade = 0.68 + Math.max(0, Math.min(1.42, shadeRaw)) * 0.50;
 
   let r = 0;
   let g = 0;
   let b = 0;
 
   if (!base.isLand) {
-    // Ocean depth gradient: abyss -> mid-ocean -> turquoise shelf
+    // Ocean depth gradient: abyss -> mid-ocean -> turquoise coral shelf
     const shallowT = Math.max(0, Math.min(1, (base.h + 0.85) / 0.83));
-    if (style === "PARCHMENT") {
-      r = lerp(28, 66, shallowT);
-      g = lerp(46, 86, shallowT);
-      b = lerp(64, 98, shallowT);
+    const shelfGlow = Math.pow(shallowT, 3.2);
+    if (style === "NIGHT_LIGHTS") {
+      r = lerp(3, 12, shallowT) + shelfGlow * 6;
+      g = lerp(7, 24, shallowT) + shelfGlow * 14;
+      b = lerp(18, 46, shallowT) + shelfGlow * 22;
+    } else if (style === "AZURE_ATLAS") {
+      r = lerp(8, 22, shallowT) + shelfGlow * 18;
+      g = lerp(32, 84, shallowT) + shelfGlow * 42;
+      b = lerp(74, 148, shallowT) + shelfGlow * 36;
+    } else if (style === "PARCHMENT") {
+      r = lerp(28, 68, shallowT);
+      g = lerp(46, 88, shallowT);
+      b = lerp(64, 100, shallowT);
     } else if (style === "SATELLITE") {
-      r = lerp(5, 18, shallowT);
-      g = lerp(18, 64, shallowT);
-      b = lerp(38, 98, shallowT);
+      r = lerp(4, 18, shallowT) + shelfGlow * 14;
+      g = lerp(16, 68, shallowT) + shelfGlow * 48;
+      b = lerp(36, 108, shallowT) + shelfGlow * 42;
     } else {
-      r = lerp(7, 26, shallowT);
-      g = lerp(24, 96, shallowT);
-      b = lerp(52, 134, shallowT);
+      r = lerp(6, 26, shallowT) + shelfGlow * 18;
+      g = lerp(22, 102, shallowT) + shelfGlow * 52;
+      b = lerp(52, 142, shallowT) + shelfGlow * 40;
     }
     return {
       isLand: false,
@@ -241,14 +251,16 @@ export function samplePlanetaryTerrainPixel(
     };
   }
 
-  // Land hypsometric + regional biome palette
+  // Land hypsometric + regional biome palette with dynamic seasonal snowline
   const absLat = Math.abs(y - 0.5) * 2;
   const elev = base.h;
+  const snowLatThreshold = season === "WINTER" ? 0.66 : season === "SUMMER" ? 0.86 : 0.78;
+  const snowElevThreshold = season === "WINTER" ? 0.66 : season === "SUMMER" ? 0.82 : 0.74;
 
   const isPolar =
     base.continent === "ARCTIC_ICE" ||
     base.continent === "ANTARCTIC_ICE" ||
-    absLat > 0.82;
+    absLat > snowLatThreshold;
   const isDesert =
     (base.continent === "SOLARA" && y > 0.70) ||
     (base.continent === "AUSTRALIS" && x < 0.78) ||
@@ -259,53 +271,67 @@ export function samplePlanetaryTerrainPixel(
     (base.continent === "ORIENTIS" && y > 0.42);
 
   if (isPolar) {
-    r = lerp(175, 236, elev);
-    g = lerp(206, 246, elev);
-    b = lerp(228, 255, elev);
-  } else if (elev > 0.78) {
-    // Snow-capped alpine summits
-    const t = (elev - 0.78) / 0.22;
-    r = lerp(158, 238, t);
-    g = lerp(156, 242, t);
-    b = lerp(154, 248, t);
-  } else if (elev > 0.56) {
-    // High rocky mountains
-    const t = (elev - 0.56) / 0.22;
-    r = lerp(142, 162, t);
-    g = lerp(116, 152, t);
-    b = lerp(88, 146, t);
+    r = lerp(188, 244, elev);
+    g = lerp(214, 250, elev);
+    b = lerp(234, 255, elev);
+  } else if (elev > snowElevThreshold) {
+    // Crisp snow-capped alpine summits
+    const t = (elev - snowElevThreshold) / Math.max(0.05, 1 - snowElevThreshold);
+    r = lerp(168, 246, t);
+    g = lerp(170, 250, t);
+    b = lerp(176, 255, t);
+  } else if (elev > 0.54) {
+    // Sculpted rocky mountain slopes
+    const t = (elev - 0.54) / Math.max(0.05, snowElevThreshold - 0.54);
+    r = lerp(136, 166, t);
+    g = lerp(112, 152, t);
+    b = lerp(86, 144, t);
   } else if (isVolcanic) {
-    const t = elev / 0.56;
-    r = lerp(96, 134, t);
-    g = lerp(64, 84, t);
-    b = lerp(58, 76, t);
+    const t = elev / 0.54;
+    r = lerp(92, 134, t);
+    g = lerp(62, 82, t);
+    b = lerp(56, 74, t);
   } else if (isDesert) {
-    const t = elev / 0.56;
-    r = lerp(186, 156, t);
-    g = lerp(154, 118, t);
-    b = lerp(96, 78, t);
+    const t = elev / 0.54;
+    r = lerp(196, 166, t);
+    g = lerp(162, 126, t);
+    b = lerp(102, 82, t);
   } else if (isJungle) {
-    const t = elev / 0.56;
-    r = lerp(28, 74, t);
-    g = lerp(98, 128, t);
-    b = lerp(54, 68, t);
+    const t = elev / 0.54;
+    r = lerp(22, 62, t);
+    g = lerp(94, 128, t);
+    b = lerp(46, 64, t);
   } else {
-    // Temperate plains -> golden uplands
-    const t = elev / 0.56;
-    r = lerp(54, 148, t);
-    g = lerp(118, 136, t);
-    b = lerp(68, 84, t);
+    // Temperate plains -> autumn amber or lush spring green
+    const t = elev / 0.54;
+    if (season === "AUTUMN") {
+      r = lerp(96, 164, t);
+      g = lerp(118, 126, t);
+      b = lerp(58, 72, t);
+    } else {
+      r = lerp(48, 142, t);
+      g = lerp(120, 138, t);
+      b = lerp(64, 82, t);
+    }
   }
 
-  if (style === "PARCHMENT") {
+  if (style === "NIGHT_LIGHTS") {
+    r = r * 0.16 + 8;
+    g = g * 0.18 + 12;
+    b = b * 0.24 + 22;
+  } else if (style === "AZURE_ATLAS") {
+    r = lerp(r, 178, 0.22);
+    g = lerp(g, 162, 0.18);
+    b = lerp(b, 122, 0.16);
+  } else if (style === "PARCHMENT") {
     const lum = 0.299 * r + 0.587 * g + 0.114 * b;
     r = lerp(lum * 1.12 + 34, r, 0.28);
     g = lerp(lum * 1.01 + 22, g, 0.28);
     b = lerp(lum * 0.78 + 4, b, 0.28);
   } else if (style === "SATELLITE") {
-    r *= 0.86;
-    g *= 0.92;
-    b *= 0.88;
+    r *= 0.88;
+    g *= 0.94;
+    b *= 0.90;
   }
 
   return {
@@ -318,7 +344,253 @@ export function samplePlanetaryTerrainPixel(
   };
 }
 
-// Module-level cache of rendered data URLs per style & resolution
+/**
+ * Bakes high-detail realistic cartographic features onto the offscreen canvas:
+ * - Sculpted 3D mountain peaks with sunlit/shadow faces & snow caps
+ * - Procedural miniature forest tree canopies in jungle & temperate woodlands
+ * - Wind-rippled desert sand dunes & oases
+ * - Polar sea-ice floes
+ * - Portolan rhumb lines (AZURE_ATLAS) & glowing golden city lights (NIGHT_LIGHTS)
+ */
+function paintBakedTerrainDetails(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  style: TerrainBackdropStyle,
+  season: "SPRING" | "SUMMER" | "AUTUMN" | "WINTER",
+) {
+  const scale = width / 1280;
+  const isNight = style === "NIGHT_LIGHTS";
+
+  // 1. Azure Atlas Portolan Rhumb Lines (classic nautical gold rays)
+  if (style === "AZURE_ATLAS") {
+    ctx.save();
+    ctx.strokeStyle = "rgba(212, 175, 55, 0.16)";
+    ctx.lineWidth = Math.max(0.6, 0.8 * scale);
+    const hubs = [
+      { x: 0.24 * width, y: 0.48 * height },
+      { x: 0.76 * width, y: 0.52 * height },
+    ];
+    for (const hub of hubs) {
+      for (let i = 0; i < 16; i++) {
+        const ang = (i * Math.PI) / 8;
+        ctx.beginPath();
+        ctx.moveTo(hub.x, hub.y);
+        ctx.lineTo(hub.x + Math.cos(ang) * width * 0.6, hub.y + Math.sin(ang) * width * 0.6);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(hub.x, hub.y, 18 * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 2. Procedural Forest Canopies (miniature layered trees in jungles & temperate forests)
+  if (!isNight && width >= 400) {
+    ctx.save();
+    const stepX = Math.max(8, Math.round(14 * scale));
+    const stepY = Math.max(8, Math.round(14 * scale));
+    for (let py = stepY; py < height - stepY; py += stepY) {
+      for (let px = stepX; px < width - stepX; px += stepX) {
+        const jx = (hash2D(px, py) - 0.5) * stepX * 0.75;
+        const jy = (hash2D(px + 37, py + 91) - 0.5) * stepY * 0.75;
+        const cx = px + jx;
+        const cy = py + jy;
+        const nx = cx / width;
+        const ny = cy / height;
+        const hInfo = computeTerrainHeight(nx, ny);
+        if (!hInfo.isLand || hInfo.h > 0.52 || hInfo.h < 0.16) continue;
+        if (hInfo.continent === "ARCTIC_ICE" || hInfo.continent === "ANTARCTIC_ICE") continue;
+        const absLat = Math.abs(ny - 0.5) * 2;
+        if (absLat > (season === "WINTER" ? 0.64 : 0.76)) continue;
+
+        const isDesert =
+          (hInfo.continent === "SOLARA" && ny > 0.70) ||
+          (hInfo.continent === "AUSTRALIS" && nx < 0.78) ||
+          (hInfo.continent === "AURELIA" && ny > 0.46 && nx < 0.68);
+        const isVolcanic = hInfo.continent === "AURELIA" && nx > 0.64 && ny > 0.24 && ny < 0.45;
+        if (isVolcanic) continue;
+
+        if (isDesert) {
+          // Wind-rippled desert sand dunes
+          if (hash2D(px + 5, py + 11) > 0.68) {
+            const dw = 6.5 * scale;
+            const dh = 2.2 * scale;
+            ctx.strokeStyle = style === "PARCHMENT" ? "rgba(120,88,48,0.28)" : "rgba(255,228,168,0.34)";
+            ctx.lineWidth = Math.max(0.7, 1.1 * scale);
+            ctx.beginPath();
+            ctx.moveTo(cx - dw, cy);
+            ctx.quadraticCurveTo(cx, cy - dh, cx + dw, cy + dh * 0.4);
+            ctx.stroke();
+          }
+          continue;
+        }
+
+        const isJungle =
+          (hInfo.continent === "SOLARA" && ny <= 0.70) ||
+          (hInfo.continent === "ORIENTIS" && ny > 0.42);
+        const densityThreshold = isJungle ? 0.22 : hInfo.continent === "HESPERIA" ? 0.34 : 0.52;
+        if (fbm2D(nx * 24, ny * 18) < densityThreshold) continue;
+
+        // Draw crisp miniature tree canopy (shadow + deep foliage + sunlit top dot)
+        const r = (isJungle ? 3.2 : 2.5) * scale * (0.8 + hash2D(px + 3, py + 7) * 0.5);
+        ctx.fillStyle = "rgba(8, 28, 16, 0.42)";
+        ctx.beginPath();
+        ctx.arc(cx + r * 0.35, cy + r * 0.35, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (style === "PARCHMENT") {
+          ctx.fillStyle = isJungle ? "rgba(62, 92, 54, 0.55)" : "rgba(82, 102, 62, 0.48)";
+        } else if (season === "AUTUMN" && !isJungle) {
+          ctx.fillStyle = hash2D(px, py + 13) > 0.5 ? "rgba(180, 108, 42, 0.72)" : "rgba(92, 128, 56, 0.72)";
+        } else {
+          ctx.fillStyle = isJungle ? "rgba(18, 110, 58, 0.78)" : "rgba(38, 124, 68, 0.70)";
+        }
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = isJungle ? "rgba(74, 184, 104, 0.55)" : "rgba(124, 198, 114, 0.45)";
+        ctx.beginPath();
+        ctx.arc(cx - r * 0.28, cy - r * 0.28, r * 0.52, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 3. Sculpted 3D Mountain Peaks with Sunlit NW Face, Shadow SE Face & Snow Caps
+  if (!isNight && width >= 400) {
+    ctx.save();
+    for (const chain of TOPOGRAPHIC_CHAINS) {
+      if (chain.kind !== "MOUNTAIN") continue;
+      for (let i = 1; i < chain.points.length; i++) {
+        const a = chain.points[i - 1];
+        const b = chain.points[i];
+        const segLen = Math.hypot((b.x - a.x) * width, (b.y - a.y) * height);
+        const steps = Math.max(2, Math.floor(segLen / (13 * scale)));
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const jitter = (hash2D(i * 19 + s, Math.round(a.x * 999)) - 0.5) * 6 * scale;
+          const mx = (a.x + (b.x - a.x) * t) * width + jitter;
+          const my = (a.y + (b.y - a.y) * t) * height + jitter * 0.6;
+          const peakH = (7.5 + hash2D(s * 7, i * 31) * 7.5) * scale;
+          const halfW = peakH * 0.88;
+
+          // Cast shadow on SE side
+          ctx.fillStyle = "rgba(15, 23, 42, 0.34)";
+          ctx.beginPath();
+          ctx.moveTo(mx, my - peakH);
+          ctx.lineTo(mx + halfW * 1.15, my + peakH * 0.32);
+          ctx.lineTo(mx, my + peakH * 0.28);
+          ctx.closePath();
+          ctx.fill();
+
+          // Sunlit NW face
+          ctx.fillStyle = style === "PARCHMENT" ? "rgba(182, 158, 124, 0.86)" : "rgba(168, 158, 146, 0.88)";
+          ctx.beginPath();
+          ctx.moveTo(mx, my - peakH);
+          ctx.lineTo(mx - halfW, my + peakH * 0.28);
+          ctx.lineTo(mx, my + peakH * 0.28);
+          ctx.closePath();
+          ctx.fill();
+
+          // Shaded SE face
+          ctx.fillStyle = style === "PARCHMENT" ? "rgba(112, 92, 68, 0.86)" : "rgba(86, 90, 102, 0.88)";
+          ctx.beginPath();
+          ctx.moveTo(mx, my - peakH);
+          ctx.lineTo(mx + halfW, my + peakH * 0.28);
+          ctx.lineTo(mx, my + peakH * 0.28);
+          ctx.closePath();
+          ctx.fill();
+
+          // Bright white snow cap on summits
+          if (peakH >= 9.2 * scale || season === "WINTER") {
+            const snowH = peakH * 0.42;
+            const snowW = halfW * 0.42;
+            ctx.fillStyle = "rgba(248, 252, 255, 0.94)";
+            ctx.beginPath();
+            ctx.moveTo(mx, my - peakH);
+            ctx.lineTo(mx - snowW, my - peakH + snowH);
+            ctx.lineTo(mx, my - peakH + snowH * 0.82);
+            ctx.lineTo(mx + snowW, my - peakH + snowH);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    // Volcanic cones with subtle ember glow
+    for (const v of VOLCANO_FEATURES) {
+      const vx = v.x * width;
+      const vy = v.y * height;
+      const vh = 12 * scale;
+      const vw = 10 * scale;
+      ctx.fillStyle = "rgba(52, 42, 46, 0.92)";
+      ctx.beginPath();
+      ctx.moveTo(vx, vy - vh);
+      ctx.lineTo(vx - vw, vy + vh * 0.25);
+      ctx.lineTo(vx + vw, vy + vh * 0.25);
+      ctx.closePath();
+      ctx.fill();
+
+      const glow = ctx.createRadialGradient(vx, vy - vh * 0.92, 0, vx, vy - vh * 0.92, 6 * scale);
+      glow.addColorStop(0, "rgba(251, 146, 60, 0.95)");
+      glow.addColorStop(1, "rgba(239, 68, 68, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(vx, vy - vh * 0.92, 6 * scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 4. Polar Sea-Ice Floes
+  if (!isNight && width >= 400) {
+    ctx.save();
+    for (let i = 0; i < 65; i++) {
+      const fx = hash2D(i * 17, 401) * width;
+      const isNorth = i % 2 === 0;
+      const fy = (isNorth ? 0.04 + hash2D(i, 12) * 0.10 : 0.87 + hash2D(i, 77) * 0.09) * height;
+      const hInfo = computeTerrainHeight(fx / width, fy / height);
+      if (hInfo.isLand) continue;
+      const rw = (3 + hash2D(i, 99) * 5) * scale;
+      const rh = rw * 0.55;
+      ctx.fillStyle = "rgba(224, 242, 254, 0.55)";
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, rw, rh, hash2D(i, 5) * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 5. Night Lights Style: Glowing Amber-Gold Urban Clusters & Coastal Beacons
+  if (isNight) {
+    ctx.save();
+    for (let i = 0; i < 240; i++) {
+      const nx = 0.04 + hash2D(i * 13, 881) * 0.92;
+      const ny = 0.14 + hash2D(i * 29, 313) * 0.72;
+      const hInfo = computeTerrainHeight(nx, ny);
+      if (!hInfo.isLand || hInfo.continent === "ARCTIC_ICE" || hInfo.continent === "ANTARCTIC_ICE") continue;
+      const cx = nx * width;
+      const cy = ny * height;
+      const rad = (2.5 + hash2D(i, 55) * 6.5) * scale;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      g.addColorStop(0, "rgba(254, 240, 138, 0.95)");
+      g.addColorStop(0.35, "rgba(245, 158, 11, 0.55)");
+      g.addColorStop(1, "rgba(245, 158, 11, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// Module-level cache of rendered data URLs per style, season & resolution
 const terrainUrlCache = new Map<string, string>();
 
 /**
@@ -328,9 +600,10 @@ export function renderTerrainBackdropSync(
   style: TerrainBackdropStyle,
   width = 420,
   height = 236,
+  season: "SPRING" | "SUMMER" | "AUTUMN" | "WINTER" = "SPRING",
 ): string | null {
   if (typeof document === "undefined") return null;
-  const cacheKey = `${style}:${width}x${height}`;
+  const cacheKey = `${style}:${season}:${width}x${height}`;
   const cached = terrainUrlCache.get(cacheKey);
   if (cached) return cached;
 
@@ -348,7 +621,7 @@ export function renderTerrainBackdropSync(
     const ny = (py + 0.5) / height;
     for (let px = 0; px < width; px++) {
       const nx = (px + 0.5) / width;
-      const sample = samplePlanetaryTerrainPixel(nx, ny, style);
+      const sample = samplePlanetaryTerrainPixel(nx, ny, style, season);
       data[ptr++] = sample.r;
       data[ptr++] = sample.g;
       data[ptr++] = sample.b;
@@ -357,6 +630,7 @@ export function renderTerrainBackdropSync(
   }
 
   ctx.putImageData(img, 0, 0);
+  paintBakedTerrainDetails(ctx, width, height, style, season);
   const url = canvas.toDataURL("image/webp", 0.9);
   terrainUrlCache.set(cacheKey, url);
   return url;
@@ -371,9 +645,10 @@ export function renderTerrainBackdropProgressive(
   onReady: (url: string) => void,
   width = 1280,
   height = 720,
+  season: "SPRING" | "SUMMER" | "AUTUMN" | "WINTER" = "SPRING",
 ): () => void {
   if (typeof document === "undefined") return () => {};
-  const cacheKey = `${style}:${width}x${height}`;
+  const cacheKey = `${style}:${season}:${width}x${height}`;
   const cached = terrainUrlCache.get(cacheKey);
   if (cached) {
     onReady(cached);
@@ -401,7 +676,7 @@ export function renderTerrainBackdropProgressive(
       const ny = (py + 0.5) / height;
       for (let px = 0; px < width; px++) {
         const nx = (px + 0.5) / width;
-        const sample = samplePlanetaryTerrainPixel(nx, ny, style);
+        const sample = samplePlanetaryTerrainPixel(nx, ny, style, season);
         data[ptr++] = sample.r;
         data[ptr++] = sample.g;
         data[ptr++] = sample.b;
@@ -420,6 +695,7 @@ export function renderTerrainBackdropProgressive(
       }
     } else if (!cancelled) {
       ctx.putImageData(img, 0, 0);
+      paintBakedTerrainDetails(ctx, width, height, style, season);
       const url = canvas.toDataURL("image/webp", 0.92);
       terrainUrlCache.set(cacheKey, url);
       onReady(url);

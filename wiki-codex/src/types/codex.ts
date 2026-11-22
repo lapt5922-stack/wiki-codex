@@ -6,6 +6,7 @@ export type CanonStatus = "canon" | "apocrypha" | "hypothesis" | "unverified";
 
 export type EntryTabKey =
   | "overview"
+  | "economy"
   | "power"
   | "holdings"
   | "roster"
@@ -16,6 +17,72 @@ export type EntryTabKey =
   | "timeline"
   | "sources"
   | "gallery";
+
+export type DeviceUIMode = "auto" | "mobile" | "tablet" | "desktop";
+export type ResolvedDeviceUI = "mobile" | "tablet" | "desktop";
+
+export interface EconomyBarItem {
+  id: string;
+  label: string;
+  percentage: number;
+  color: string;
+  note?: string;
+}
+
+export interface DevelopmentIndexItem {
+  id: string;
+  label: string;
+  score: number; // 0-100
+  color: string;
+  unit?: string;
+  note?: string;
+}
+
+export interface CustomMetricBarItem {
+  id: string;
+  group: string;
+  label: string;
+  value: number; // 0-100
+  unit?: string;
+  color: string;
+  note?: string;
+}
+
+export interface EntryEconomyProfile {
+  /** GDP / Tổng sản lượng ước tính (thuần bách khoa) */
+  economicTierLabel: string;
+  currencyName: string;
+  currencyCode: string;
+  /** Tỷ giá quy đổi: bao nhiêu đơn vị tiền tệ này = 1 Đồng Hoàng Kim Aurel (AUR) */
+  exchangeRateToAurel: number;
+  /** 1. Cơ cấu ngành kinh tế (tổng 100%) */
+  sectorBreakdown: EconomyBarItem[];
+  /** 2. Phân bổ ngân sách quốc gia (tổng 100%) */
+  budgetAllocation: EconomyBarItem[];
+  /** 3. Bộ 6 thanh chỉ số phát triển & hạ tầng (0–100%) */
+  developmentMeters: DevelopmentIndexItem[];
+  /** 4. Cán cân xuất - nhập khẩu */
+  tradeBalance: {
+    exportsShare: number; // 0-100 (tỷ trọng xuất khẩu trong tổng kim ngạch)
+    importsShare: number; // 0-100 (tỷ trọng nhập khẩu = 100 - exportsShare)
+    balanceLabel: string; // "Thặng dư thương mại" | "Cân bằng ổn định" | "Nhập siêu hạ tầng"
+    majorExports: string[];
+    majorImports: string[];
+  };
+  /** 5. Cơ cấu xã hội & đô thị hóa (tổng 100%) */
+  demographicsBars: EconomyBarItem[];
+  /** 6. Thanh dữ liệu tùy biến không giới hạn */
+  customMetricBars?: CustomMetricBarItem[];
+  /** Ghi chú kinh tế tóm lược */
+  economicOverviewNote?: string;
+}
+
+export interface EntityEmblemConfig {
+  primaryColor: string;
+  secondaryColor: string;
+  shape: "shield" | "banner" | "crest" | "seal";
+  motif: "crown" | "star" | "waves" | "tree" | "mountain" | "sun" | "scales" | "compass";
+}
 
 export type CustomFieldType =
   | "text"
@@ -327,6 +394,9 @@ export interface Entry {
   forceUnits?: EntryForceUnit[];
   resourceItems?: EntryResourceItem[];
   rumorsAndSecrets?: EntryRumorSecret[];
+  // V7.0 Pure-Wiki Economy Profile & Heraldry Emblem
+  economyProfile?: EntryEconomyProfile;
+  emblemConfig?: EntityEmblemConfig;
   featured?: boolean;
   locked?: boolean;
   spoilerGate: boolean;
@@ -371,6 +441,14 @@ export interface EntryCardProjection {
   cardHighlights?: Array<{ label: string; value: string; color?: string }>;
   extraFieldCount?: number;
   variantCount?: number;
+  economySummary?: {
+    primarySector: string;
+    literacyRate: number;
+    infrastructureRate: number;
+    tradeBalanceRatio: number; // exportsShare - importsShare
+    currencyCode: string;
+    urbanizationRate: number;
+  };
   featured?: boolean;
   locked?: boolean;
   spoilerGate: boolean;
@@ -421,6 +499,8 @@ export interface EntryRevision {
     forceUnits?: EntryForceUnit[];
     resourceItems?: EntryResourceItem[];
     rumorsAndSecrets?: EntryRumorSecret[];
+    economyProfile?: EntryEconomyProfile;
+    emblemConfig?: EntityEmblemConfig;
     tags: string[];
     contentMarkdown: string;
     customFields: Record<string, CustomFieldValue>;

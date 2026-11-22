@@ -33,6 +33,7 @@ import type {
 import { classifyPowerTier, formatUnboundedPower } from "@/lib/v3-engines";
 import { DynamicIcon } from "./DynamicIcon";
 import { EntityCodexCard } from "./EntityCodexCard";
+import { useDeviceUI } from "@/lib/device-ui";
 
 interface DatabaseViewProps {
   workspaceId: string;
@@ -116,8 +117,26 @@ export function DatabaseView({
   onOpenBookMode,
   onOpenRandom
 }: DatabaseViewProps) {
+  const { isMobile, isTablet } = useDeviceUI();
   const [viewMode, setViewMode] = useState<"grid" | "magazine" | "list" | "table">("grid");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [econFilter, setEconFilter] = useState<"all" | "has-econ" | "high-literacy" | "trade-surplus">("all");
+
+  const displayedEntries = React.useMemo(() => {
+    if (econFilter === "all") return entries;
+    if (econFilter === "has-econ") return entries.filter((e) => Boolean(e.economySummary));
+    if (econFilter === "high-literacy") return entries.filter((e) => (e.economySummary?.literacyRate ?? 0) >= 80);
+    return entries.filter((e) => (e.economySummary?.tradeBalanceRatio ?? 0) > 0);
+  }, [entries, econFilter]);
+
+  const econKpis = React.useMemo(() => {
+    const withEcon = entries.filter((e) => e.economySummary);
+    if (withEcon.length === 0) return null;
+    const avgLit = Math.round(withEcon.reduce((s, e) => s + (e.economySummary?.literacyRate ?? 0), 0) / withEcon.length);
+    const avgInfra = Math.round(withEcon.reduce((s, e) => s + (e.economySummary?.infrastructureRate ?? 0), 0) / withEcon.length);
+    const surplusCount = withEcon.filter((e) => (e.economySummary?.tradeBalanceRatio ?? 0) > 0).length;
+    return { count: withEcon.length, avgLit, avgInfra, surplusCount };
+  }, [entries]);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [bulkTag, setBulkTag] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -287,6 +306,18 @@ export function DatabaseView({
             <option value="status">Trạng thái</option>
           </select>
 
+          <select
+            value={econFilter}
+            onChange={(e) => setEconFilter(e.target.value as "all" | "has-econ" | "high-literacy" | "trade-surplus")}
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 px-2.5 py-1.5 text-xs"
+            title="Lọc nhanh theo chỉ số Kinh tế & Học vấn"
+          >
+            <option value="all" className="bg-[#090e1c]">✦ Mọi chỉ số Kinh tế</option>
+            <option value="has-econ" className="bg-[#090e1c]">Ⱥ Có Hồ sơ Kinh tế</option>
+            <option value="high-literacy" className="bg-[#090e1c]">★ Học vấn cao (≥ 80%)</option>
+            <option value="trade-surplus" className="bg-[#090e1c]">↗ Thặng dư Thương mại</option>
+          </select>
+
           {savedViews.length > 0 && onApplySavedView && (
             <div className="flex flex-wrap gap-1">
               {savedViews.map((sv) => (
@@ -370,22 +401,44 @@ export function DatabaseView({
         </div>
       )}
 
+      {/* Feature #18: Live Global Economy KPI Strip */}
+      {econKpis && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-amber-300/80">Hồ sơ có Kinh tế</div>
+            <div className="text-base font-mono font-bold text-amber-300">{econKpis.count}</div>
+          </div>
+          <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-purple-300/80">Học vấn Trung bình</div>
+            <div className="text-base font-mono font-bold text-purple-300">{econKpis.avgLit}%</div>
+          </div>
+          <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-sky-300/80">Hạ tầng Trung bình</div>
+            <div className="text-base font-mono font-bold text-sky-300">{econKpis.avgInfra}%</div>
+          </div>
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-emerald-300/80">Thặng dư Thương mại</div>
+            <div className="text-base font-mono font-bold text-emerald-300">{econKpis.surplusCount} nước</div>
+          </div>
+        </div>
+      )}
+
       {/* Entries Content */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"} gap-4`}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="codex-card rounded-2xl h-56 animate-pulse bg-white/5" />
           ))}
         </div>
-      ) : entries.length === 0 ? (
+      ) : displayedEntries.length === 0 ? (
         <div className="codex-card rounded-2xl p-12 text-center space-y-2">
           <div className="text-3xl text-[var(--accent)]">✦</div>
           <p className="font-display text-lg">Chưa có hồ sơ nào khớp bộ lọc</p>
         </div>
       ) : viewMode === "magazine" ? (
         /* Magazine / Visual Showcase Mode */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {entries.map((entry) => {
+        <div className={`grid ${isMobile ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"} gap-5`}>
+          {displayedEntries.map((entry) => {
             const type = typeMap.get(entry.entryTypeId);
             const accent = type?.color || "var(--accent)";
             return (
@@ -414,8 +467,8 @@ export function DatabaseView({
           })}
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {entries.map((entry) => (
+        <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"} gap-4`}>
+          {displayedEntries.map((entry) => (
             <EntityCodexCard
               key={entry.id}
               entry={entry}

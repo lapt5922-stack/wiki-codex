@@ -52,6 +52,7 @@ import {
 import { getPostgresPool, isPostgresConfigured } from "./pool";
 import { createInitialSeedState } from "./seed-data";
 import { renameWikilinkAcrossMarkdown } from "@/lib/wiki-auditor-pro";
+import { extractEconomySummary } from "@/lib/economy-engine";
 import {
   countWords,
   matchesVietnameseQuery,
@@ -303,17 +304,47 @@ function hydrateV2State(raw: Partial<CodexDatabaseState>): CodexDatabaseState {
       seed.entries.filter((e) => e.id.startsWith("ent-nation-")).map((e) => [e.id, e])
     );
     for (const ent of state.entries) {
-      if (!ent.id.startsWith("ent-nation-") || ent.roster?.length) continue;
+      if (!ent.id.startsWith("ent-nation-")) continue;
       const src = seedNationById.get(ent.id);
       if (!src) continue;
-      ent.epigraph = ent.epigraph ?? src.epigraph;
-      ent.roster = src.roster;
-      ent.lawsAndCustoms = src.lawsAndCustoms;
-      ent.resourceItems = src.resourceItems;
-      ent.rumorsAndSecrets = src.rumorsAndSecrets;
-      ent.customSections = src.customSections;
-      ent.breakdownBars = src.breakdownBars;
-      ent.eraSnapshots = src.eraSnapshots;
+      if (!ent.roster?.length) {
+        ent.epigraph = ent.epigraph ?? src.epigraph;
+        ent.roster = src.roster;
+        ent.lawsAndCustoms = src.lawsAndCustoms;
+        ent.resourceItems = src.resourceItems;
+        ent.rumorsAndSecrets = src.rumorsAndSecrets;
+        ent.customSections = src.customSections;
+        ent.breakdownBars = src.breakdownBars;
+        ent.eraSnapshots = src.eraSnapshots;
+      }
+      // V7.0 Economy Profile & Emblem Backfill
+      if (!ent.economyProfile && src.economyProfile) {
+        ent.economyProfile = src.economyProfile;
+      }
+      if (!ent.emblemConfig && src.emblemConfig) {
+        ent.emblemConfig = src.emblemConfig;
+      }
+      if (!ent.tabOverrides?.enabled?.includes("economy")) {
+        ent.tabOverrides = {
+          enabled: Array.from(new Set([...(ent.tabOverrides?.enabled ?? []), "economy"])),
+          disabled: ent.tabOverrides?.disabled
+        };
+      }
+    }
+  }
+
+  // V7.0 Auto-Migration: Ensure Economy category + subcategories & "economy" tab on relevant entryTypes
+  const existingCatIdsV7 = new Set(state.categories.map((c) => c.id));
+  for (const c of seed.categories) {
+    if ((c.id === "cat-kinh-te" || c.id.startsWith("cat-econ-")) && !existingCatIdsV7.has(c.id)) {
+      state.categories.push(c);
+    }
+  }
+  for (const st of seed.entryTypes) {
+    if (!st.enabledTabs.includes("economy")) continue;
+    const existing = state.entryTypes.find((t) => t.id === st.id);
+    if (existing && !existing.enabledTabs.includes("economy")) {
+      existing.enabledTabs.splice(1, 0, "economy");
     }
   }
 
@@ -475,6 +506,7 @@ export function projectEntryToCard(
     cardHighlights: extractCardHighlights(entry, entryType),
     extraFieldCount: (entry.extraFields ?? []).filter((f) => f.kind !== "private_note").length,
     variantCount: (entry.variants ?? []).length,
+    economySummary: extractEconomySummary(entry),
     featured: entry.featured,
     spoilerGate: entry.spoilerGate,
     tags: entry.tags,
@@ -1012,6 +1044,8 @@ function buildRevisionSnapshot(entry: Entry): EntryRevision["snapshot"] {
     forceUnits: entry.forceUnits ? entry.forceUnits.map((u) => ({ ...u })) : undefined,
     resourceItems: entry.resourceItems ? entry.resourceItems.map((i) => ({ ...i })) : undefined,
     rumorsAndSecrets: entry.rumorsAndSecrets ? entry.rumorsAndSecrets.map((r) => ({ ...r })) : undefined,
+    economyProfile: entry.economyProfile ? structuredClone(entry.economyProfile) : undefined,
+    emblemConfig: entry.emblemConfig ? { ...entry.emblemConfig } : undefined,
     tags: [...entry.tags],
     contentMarkdown: entry.contentMarkdown,
     customFields: { ...entry.customFields },
@@ -1076,6 +1110,8 @@ export async function createEntry(
     forceUnits: Array.isArray(input.forceUnits) ? input.forceUnits : [],
     resourceItems: Array.isArray(input.resourceItems) ? input.resourceItems : [],
     rumorsAndSecrets: Array.isArray(input.rumorsAndSecrets) ? input.rumorsAndSecrets : [],
+    economyProfile: input.economyProfile,
+    emblemConfig: input.emblemConfig,
     featured: Boolean(input.featured),
     spoilerGate: Boolean(input.spoilerGate),
     spoilerLabel: input.spoilerLabel || "",

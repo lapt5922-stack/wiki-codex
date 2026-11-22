@@ -19,7 +19,12 @@ export type AtlasBiomeId =
 
 export type AtlasDisplayMode = "CLEAN_LOD" | "COLOR_MOSAIC" | "ISOLATED_FOCUS";
 
-export type TerrainBackdropStyle = "PHYSICAL_RELIEF" | "SATELLITE" | "PARCHMENT";
+export type TerrainBackdropStyle =
+  | "PHYSICAL_RELIEF"
+  | "SATELLITE"
+  | "PARCHMENT"
+  | "NIGHT_LIGHTS"
+  | "AZURE_ATLAS";
 
 export type AtlasWikiLens =
   | "POLITICAL"
@@ -28,7 +33,10 @@ export type AtlasWikiLens =
   | "BIOME"
   | "DEMOGRAPHICS"
   | "DIPLOMACY"
-  | "RESOURCES";
+  | "RESOURCES"
+  | "ECONOMY"
+  | "CURRENCY"
+  | "TRADE_BALANCE";
 
 export type DiplomacyStatus =
   | "ALLIANCE"

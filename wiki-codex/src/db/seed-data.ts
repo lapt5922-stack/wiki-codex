@@ -112,6 +112,13 @@ export function createInitialSeedState(): CodexDatabaseState {
       // Group 7: Cổ vật Văn hóa & Tác phẩm
       { id: "cat-co-vat", workspaceId: "ws-aethelgard", parentId: null, name: "Cổ vật Văn hóa & Tác phẩm", slug: "co-vat-van-hoa-tac-pham", description: "Bản thảo cổ thư, công cụ thiên văn và di sản nghệ thuật.", icon: "Gem", sigil: "❖", color: "#FB7185", sortOrder: 7, deletedAt: null, createdAt: NOW, updatedAt: NOW },
 
+      // Group 8: Kinh tế, Tài chính & Giao thương (V7.0)
+      { id: "cat-kinh-te", workspaceId: "ws-aethelgard", parentId: null, name: "Kinh tế, Tài chính & Giao thương", slug: "kinh-te-tai-chinh-giao-thuong", description: "Hệ thống tiền tệ, tuyến thương mại, cơ cấu ngành, ngân sách công và hạ tầng dân sinh.", icon: "Coins", sigil: "Ⱥ", color: "#D97706", sortOrder: 8, deletedAt: null, createdAt: NOW, updatedAt: NOW },
+      { id: "cat-econ-currency", workspaceId: "ws-aethelgard", parentId: "cat-kinh-te", name: "Hệ thống Tiền tệ & Ngân khố", slug: "he-thong-tien-te-ngan-kho", description: "Đồng Hoàng Kim Aurel và 9 hệ thống tiền tệ bản địa trên toàn hành tinh.", icon: "Landmark", sigil: "◈", color: "#D4AF37", sortOrder: 1, deletedAt: null, createdAt: NOW, updatedAt: NOW },
+      { id: "cat-econ-trade", workspaceId: "ws-aethelgard", parentId: "cat-kinh-te", name: "Tuyến Thương mại & Hải cảng", slug: "tuyen-thuong-mai-hai-cang", description: "Hành lang giao thương đường bộ, hải trình liên lục địa và thương cảng tự do.", icon: "Compass", sigil: "♆", color: "#38BDF8", sortOrder: 2, deletedAt: null, createdAt: NOW, updatedAt: NOW },
+      { id: "cat-econ-industry", workspaceId: "ws-aethelgard", parentId: "cat-kinh-te", name: "Nông nghiệp, Thủ công & Luyện kim", slug: "nong-nghiep-thu-cong-luyen-kim", description: "Vùng chuyên canh lương thực, phường hội chế tác và công nghệ vật liệu.", icon: "Hammer", sigil: "⚒", color: "#10B981", sortOrder: 3, deletedAt: null, createdAt: NOW, updatedAt: NOW },
+      { id: "cat-econ-fiscal", workspaceId: "ws-aethelgard", parentId: "cat-kinh-te", name: "Thuế chế, Ngân sách & Công trình", slug: "thue-che-ngan-sach-cong-trinh", description: "Chính sách phân bổ ngân sách giáo dục, hạ tầng, y tế và bảo tồn sinh thái.", icon: "Scale", sigil: "⚖", color: "#A78BFA", sortOrder: 4, deletedAt: null, createdAt: NOW, updatedAt: NOW },
+
       // Workspace 2 Categories
       { id: "cat-tech-arch", workspaceId: "ws-tech-archive", parentId: null, name: "Kiến trúc Hệ thống", slug: "kien-truc-he-thong", description: "Nguyên lý thiết kế phần mềm quy mô lớn và cơ sở dữ liệu.", icon: "Cpu", sigil: "⬡", color: "#60A5FA", sortOrder: 1, deletedAt: null, createdAt: NOW, updatedAt: NOW },
       { id: "cat-tech-db", workspaceId: "ws-tech-archive", parentId: "cat-tech-arch", name: "Cơ sở dữ liệu & Tìm kiếm", slug: "co-so-du-lieu-tim-kiem", description: "Chỉ mục GIN, phân trang Keyset và tối ưu hóa truy vấn.", icon: "Database", sigil: "⌬", color: "#34D399", sortOrder: 1, deletedAt: null, createdAt: NOW, updatedAt: NOW },
@@ -133,7 +140,7 @@ export function createInitialSeedState(): CodexDatabaseState {
         supportsVariants: true,
         powerPresetKind: "kingdom",
         cardStyle: "kingdom",
-        enabledTabs: ["overview", "holdings", "roster", "power", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
+        enabledTabs: ["overview", "economy", "holdings", "roster", "power", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
         fieldSchema: [
           { key: "capital", label: "Kinh đô", type: "text", showInInfobox: true, placeholder: "Ví dụ: Thành Băng Aurelia" },
           { key: "founded_era", label: "Niên đại thành lập", type: "text", showInInfobox: true, placeholder: "Năm 120 Kỷ Nguyên Ánh Sao" },
@@ -211,7 +218,7 @@ export function createInitialSeedState(): CodexDatabaseState {
         supportsPower: false,
         supportsVariants: false,
         cardStyle: "city",
-        enabledTabs: ["overview", "holdings", "roster", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
+        enabledTabs: ["overview", "economy", "holdings", "roster", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
         fieldSchema: [
           { key: "nation", label: "Quốc gia trực thuộc", type: "entity_ref", showInInfobox: true },
           { key: "city_population", label: "Dân số đô thị", type: "number", unit: "cư dân", showInInfobox: true },
@@ -279,7 +286,7 @@ export function createInitialSeedState(): CodexDatabaseState {
         supportsVariants: false,
         powerPresetKind: "organization",
         cardStyle: "house",
-        enabledTabs: ["overview", "holdings", "roster", "power", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
+        enabledTabs: ["overview", "economy", "holdings", "roster", "power", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
         fieldSchema: [
           { key: "motto", label: "Khẩu hiệu gia tộc", type: "text", showInInfobox: true },
           { key: "founder", label: "Người sáng lập", type: "text", showInInfobox: true },
@@ -322,7 +329,7 @@ export function createInitialSeedState(): CodexDatabaseState {
         supportsVariants: false,
         powerPresetKind: "organization",
         cardStyle: "organization",
-        enabledTabs: ["overview", "holdings", "roster", "power", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
+        enabledTabs: ["overview", "economy", "holdings", "roster", "power", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"],
         fieldSchema: [
           { key: "headquarters", label: "Trụ sở chính", type: "text", showInInfobox: true },
           { key: "founded", label: "Năm thành lập", type: "text", showInInfobox: true },

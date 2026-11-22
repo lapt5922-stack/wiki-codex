@@ -83,6 +83,18 @@ import {
   EntryRumorsSecretsPanel,
   EntryStatecraftPanel
 } from "./EntryDossierModules";
+import {
+  EconomyOverviewMiniCard,
+  EntryEconomyPanel
+} from "./EntryEconomyPanel";
+import {
+  ClimateFourSeasonStrip,
+  EntityEmblemSVG,
+  InlineMiniTimelineStrip,
+  SmartLoreRecommender
+} from "./EntityVisualWidgets";
+import { useDeviceUI } from "@/lib/device-ui";
+import type { EntryCardProjection } from "@/types/codex";
 
 interface RelationViewItem {
   id: string;
@@ -114,11 +126,14 @@ interface EntryDetailViewProps {
   onEditEntry: (entry: Entry) => void;
   onCreateRedLink: (missingTitle: string) => void;
   onViewOnPlanetaryAtlas?: (nationId: string) => void;
+  onOpenComparator?: (entryId: string) => void;
+  allCards?: EntryCardProjection[];
   onMutated: () => Promise<void>;
 }
 
 const TAB_LABELS: Record<EntryTabKey, string> = {
   overview: "Tổng quan",
+  economy: "Kinh tế & Hạ tầng",
   holdings: "Lãnh địa & Trực thuộc",
   roster: "Nhân sự & Chức vụ",
   power: "Chỉ số & Power Level",
@@ -151,8 +166,14 @@ export function EntryDetailView({
   onEditEntry,
   onCreateRedLink,
   onViewOnPlanetaryAtlas,
+  onOpenComparator,
+  allCards,
   onMutated
 }: EntryDetailViewProps) {
+  const { isMobile } = useDeviceUI();
+  const [activeHeadingId, setActiveHeadingId] = useState<string>("");
+  const [errataText, setErrataText] = useState("");
+  const [errataSent, setErrataSent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [entry, setEntry] = useState<Entry | null>(null);
   const [revisions, setRevisions] = useState<EntryRevision[]>([]);
@@ -1269,6 +1290,14 @@ export function EntryDetailView({
             </div>
 
             <div className="flex items-start gap-3">
+              {entry.emblemConfig && (
+                <EntityEmblemSVG
+                  config={entry.emblemConfig}
+                  sigil={entry.sigil}
+                  size={isMobile ? 46 : 58}
+                  className="mt-0.5"
+                />
+              )}
               <div
                 className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border-2 flex items-center justify-center text-2xl sm:text-3xl shrink-0 bg-[var(--bg-base)]/80 shadow-lg"
                 style={{ borderColor: accent, color: accent, boxShadow: `0 0 24px ${accent}44` }}
@@ -1485,12 +1514,12 @@ export function EntryDetailView({
         );
       })()}
 
-      {/* Mobile Collapsible Infobox (keeps mobile reading instant!) */}
-      <div className="lg:hidden no-print">
+      {/* Mobile Collapsible Infobox (respects Device UI Switcher!) */}
+      <div className={`${isMobile ? "block" : "lg:hidden"} no-print`}>
         <button
           type="button"
           onClick={() => setMobileInfoboxOpen((v) => !v)}
-          className="w-full codex-card rounded-xl px-4 py-2.5 flex items-center justify-between text-xs font-semibold text-[var(--accent)]"
+          className="w-full codex-card codex-touch-target rounded-xl px-4 py-2.5 flex items-center justify-between text-xs font-semibold text-[var(--accent)]"
         >
           <span className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" />
@@ -1501,8 +1530,8 @@ export function EntryDetailView({
         {mobileInfoboxOpen && <div className="mt-2">{infoboxCard}</div>}
       </div>
 
-      {/* Main 2-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* Main Layout (1-col on Mobile Studio, 2-col on Tablet/Desktop) */}
+      <div className={`grid grid-cols-1 ${isMobile ? "" : "lg:grid-cols-12"} gap-5 items-start`}>
         <div className="lg:col-span-8 space-y-4">
           <div className="codex-card rounded-2xl p-4 sm:p-7 space-y-4">
             {entry.summary && (
@@ -1547,6 +1576,30 @@ export function EntryDetailView({
             {/* Tab 1: Overview */}
             {activeTab === "overview" && (
               <div className="space-y-5">
+                {entry.economyProfile && (
+                  <EconomyOverviewMiniCard
+                    profile={entry.economyProfile}
+                    onOpenEconomyTab={() => setActiveTab("economy")}
+                    onCompare={onOpenComparator ? () => onOpenComparator(entry.id) : undefined}
+                  />
+                )}
+                {(entry.id.startsWith("ent-nation-") ||
+                  entry.extraFields?.some((f) => f.label.toLowerCase().includes("sinh thái") || f.label.toLowerCase().includes("khí hậu"))) && (
+                  <ClimateFourSeasonStrip
+                    biomeText={
+                      entry.extraFields?.find(
+                        (f) => f.label.toLowerCase().includes("sinh thái") || f.label.toLowerCase().includes("khí hậu")
+                      )?.value || entry.tags.join(" ")
+                    }
+                    compact={isMobile}
+                  />
+                )}
+                {entry.eraSnapshots && entry.eraSnapshots.length > 0 && (
+                  <InlineMiniTimelineStrip
+                    snapshots={entry.eraSnapshots}
+                    onJumpToEras={() => setActiveTab("eras")}
+                  />
+                )}
                 {contentBody}
                 {entryType?.slug === "co-ngu-ngon-ngu" && (
                   <EntryLinguisticDossier conlang={activeConlang} />
@@ -1557,6 +1610,22 @@ export function EntryDetailView({
                   onPatch={patchEntryInline}
                 />
               </div>
+            )}
+
+            {/* Tab V7.0: Economy & Infrastructure Multi-Bar Suite */}
+            {activeTab === "economy" && (
+              <EntryEconomyPanel
+                entryTitle={entry.title}
+                profile={entry.economyProfile}
+                canEdit={canEdit}
+                onSaveEconomy={async (nextProfile) => {
+                  await patchEntryInline(
+                    { economyProfile: nextProfile },
+                    "Cập nhật Hồ sơ Kinh tế & Hạ tầng đa thanh dữ liệu"
+                  );
+                }}
+                onOpenComparator={onOpenComparator ? () => onOpenComparator(entry.id) : undefined}
+              />
             )}
 
             {/* Tab V6.0: Bidirectional Holdings & Territories */}
@@ -2072,22 +2141,95 @@ export function EntryDetailView({
               </div>
             </div>
           )}
+          {/* Feature #7: Smart Related Recommender */}
+          {allCards && allCards.length > 0 && (
+            <SmartLoreRecommender
+              currentEntryId={entry.id}
+              currentCategoryId={entry.categoryId}
+              currentTags={entry.tags}
+              allCards={allCards}
+              onOpenEntry={onOpenEntry}
+            />
+          )}
+
+          {/* Feature #13: Public Errata & Reader Suggestion Box */}
+          <div className="codex-card rounded-2xl p-4 space-y-2.5 no-print">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[var(--accent)]">
+                ✦ Góp ý Độc giả & Báo lỗi Chính tả / Dữ liệu
+              </span>
+              {errataSent && (
+                <span className="text-[11px] text-emerald-400">✓ Đã ghi nhận góp ý!</span>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={errataText}
+                onChange={(e) => setErrataText(e.target.value)}
+                placeholder="Đề xuất bổ sung tư liệu, chỉnh số liệu kinh tế hoặc báo lỗi chính tả..."
+                className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs text-[var(--text-primary)]"
+              />
+              <button
+                type="button"
+                disabled={!errataText.trim()}
+                onClick={async () => {
+                  const text = errataText.trim();
+                  if (!text) return;
+                  try {
+                    const key = `wiki-codex-errata-${entry.id}`;
+                    const prev = JSON.parse(localStorage.getItem(key) || "[]");
+                    prev.push({ text, createdAt: new Date().toISOString() });
+                    localStorage.setItem(key, JSON.stringify(prev));
+                  } catch {
+                    // ignore
+                  }
+                  if (canEdit) {
+                    await fetch(`/api/entries/${entry.id}/notes`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ content: `[Góp ý độc giả] ${text}` })
+                    }).catch(() => {});
+                  }
+                  setErrataText("");
+                  setErrataSent(true);
+                  setTimeout(() => setErrataSent(false), 2600);
+                }}
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[#090e1c] font-semibold text-xs disabled:opacity-50 cursor-pointer shrink-0"
+              >
+                Gửi góp ý
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Desktop Sticky Infobox & Floating TOC */}
-        <aside className="hidden lg:block lg:col-span-4 space-y-4 sticky top-20">
+        {/* Desktop/Tablet Sticky Infobox & Interactive Scroll-Spy TOC */}
+        <aside className={`${isMobile ? "hidden" : "hidden lg:block lg:col-span-4"} space-y-4 sticky top-20`}>
           {infoboxCard}
           {headings.length > 0 && (
             <div className="codex-card rounded-2xl p-4 space-y-2 no-print">
               <div className="text-xs font-semibold text-[var(--accent)] flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5" /> Mục lục Bài viết
+                <BookOpen className="w-3.5 h-3.5" /> Mục lục Bài viết (Scroll-Spy)
               </div>
-              <nav className="space-y-1 text-xs">
-                {headings.map((h) => (
-                  <a key={h.id} href={`#${h.id}`} className="block text-[var(--text-secondary)] hover:text-[var(--accent)] truncate" style={{ paddingLeft: `${(h.level - 1) * 10}px` }}>
-                    ✧ {h.text}
-                  </a>
-                ))}
+              <nav className="space-y-1 text-xs max-h-64 overflow-y-auto">
+                {headings.map((h) => {
+                  const active = activeHeadingId === h.id;
+                  return (
+                    <a
+                      key={h.id}
+                      href={`#${h.id}`}
+                      onClick={() => setActiveHeadingId(h.id)}
+                      className={`block truncate rounded px-1.5 py-0.5 transition-colors ${
+                        active
+                          ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                          : "text-[var(--text-secondary)] hover:text-[var(--accent)]"
+                      }`}
+                      style={{ paddingLeft: `${(h.level - 1) * 10 + 6}px` }}
+                    >
+                      ✧ {h.text}
+                    </a>
+                  );
+                })}
               </nav>
             </div>
           )}
@@ -2097,13 +2239,33 @@ export function EntryDetailView({
       {/* #14 Reader Personal Notes Drawer */}
       {showReaderNote && (
         <div className="rounded-2xl border border-amber-400/40 bg-amber-500/5 p-4 space-y-2 animate-codex-fade-up no-print">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-xs gap-2">
             <span className="font-semibold text-amber-300">
               ✦ Ghi chú cá nhân của bạn cho "{entry.title}" (Lưu riêng trên trình duyệt)
             </span>
-            <button type="button" onClick={() => setShowReaderNote(false)} className="text-slate-400 hover:text-white cursor-pointer">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {readerNote.trim() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const md = `# Ghi chú Độc giả: ${entry.title}\n\n${readerNote}\n`;
+                    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `notes-${entry.slug || entry.id}.md`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-2 py-0.5 rounded bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 cursor-pointer"
+                >
+                  Xuất .md
+                </button>
+              )}
+              <button type="button" onClick={() => setShowReaderNote(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           <textarea
             rows={3}

@@ -35,6 +35,7 @@ import {
   DIPLOMACY_META,
   SEASON_META,
   TIER_META,
+  computeConcentricRingsNormalized,
   computeExpeditionTravel,
   computePolygonAreaKm2,
   findShortestNationPath,
@@ -47,6 +48,15 @@ import { CapitalCityBlueprintModal } from "./CapitalCityBlueprintModal";
 import { NationsSpreadsheetModal } from "./NationsSpreadsheetModal";
 import { PlanetaryGlobeView } from "./PlanetaryGlobeView";
 import { WorldAnalyticsHubModal } from "./WorldAnalyticsHubModal";
+import {
+  AtlasLiveLegendCard,
+  AtlasMiniMapRadar,
+  AtlasRichHoverCard,
+  AtlasViewportInspector,
+  AtlasWorldTourBanner,
+  WORLD_TOUR_STOPS
+} from "./AtlasProOverlays";
+import { useDeviceUI } from "@/lib/device-ui";
 import { CONTINENT_NAME_VI } from "@/lib/planetary-atlas/nations-data";
 import {
   computeNormalizedViewportBounds,
@@ -83,6 +93,9 @@ const LENS_OPTIONS: Array<{ id: AtlasWikiLens; label: string }> = [
   { id: "TERRAIN", label: "Địa hình" },
   { id: "CLIMATE", label: "Khí hậu" },
   { id: "BIOME", label: "Hệ sinh thái" },
+  { id: "ECONOMY", label: "Kinh tế & HV" },
+  { id: "CURRENCY", label: "Tiền tệ" },
+  { id: "TRADE_BALANCE", label: "Cán cân TM" },
   { id: "DEMOGRAPHICS", label: "Dân số" },
   { id: "DIPLOMACY", label: "Ngoại giao" },
   { id: "RESOURCES", label: "Tài nguyên" },
@@ -156,6 +169,8 @@ function buildNationWikiMarkdown(
 const TERRAIN_STYLE_OPTIONS: Array<{ id: TerrainBackdropStyle; label: string }> = [
   { id: "PHYSICAL_RELIEF", label: "Địa hình 3D" },
   { id: "SATELLITE", label: "Vệ tinh" },
+  { id: "NIGHT_LIGHTS", label: "Đêm Đô thị" },
+  { id: "AZURE_ATLAS", label: "Hải đồ Hoàng kim" },
   { id: "PARCHMENT", label: "Giấy da Cổ" },
 ];
 
@@ -322,14 +337,25 @@ export function PlanetaryAtlasStudio({
   const [terrainBackdropUrl, setTerrainBackdropUrl] = useState<string | null>(null);
   const [terrainHdReady, setTerrainHdReady] = useState<boolean>(false);
 
+  const [season, setSeason] = useState<SeasonId>("SPRING");
+  const { isMobile } = useDeviceUI();
+  const [showMiniMap, setShowMiniMap] = useState<boolean>(true);
+  const [showLegend, setShowLegend] = useState<boolean>(true);
+  const [showDistanceRings, setShowDistanceRings] = useState<boolean>(false);
+  const [showWindVeil, setShowWindVeil] = useState<boolean>(false);
+  const [tourActive, setTourActive] = useState<boolean>(false);
+  const [tourPlaying, setTourPlaying] = useState<boolean>(true);
+  const [tourIndex, setTourIndex] = useState<number>(0);
+  const [hoverScreenPos, setHoverScreenPos] = useState<{ x: number; y: number }>({ x: 240, y: 180 });
+
   useEffect(() => {
     if (!showTerrainBackdrop) return;
     setTerrainHdReady(false);
-    // Stage 1: Instant preview (<25ms)
-    const preview = renderTerrainBackdropSync(terrainStyle, 420, 236);
+    // Stage 1: Instant preview (<25ms) with dynamic seasonal snowline & sculpted relief
+    const preview = renderTerrainBackdropSync(terrainStyle, 420, 236, season);
     if (preview) setTerrainBackdropUrl(preview);
 
-    // Stage 2: Non-blocking HD upgrade (1280x720) in background chunks
+    // Stage 2: Non-blocking HD upgrade (1280x720) with baked mountains, trees, dunes & ice floes
     const cancel = renderTerrainBackdropProgressive(
       terrainStyle,
       (hdUrl) => {
@@ -338,9 +364,10 @@ export function PlanetaryAtlasStudio({
       },
       1280,
       720,
+      season,
     );
     return cancel;
-  }, [showTerrainBackdrop, terrainStyle]);
+  }, [showTerrainBackdrop, terrainStyle, season]);
 
   // Pre-compute static SVG paths once for 60fps panning
   const continentShelfPaths = useMemo(
@@ -446,7 +473,7 @@ export function PlanetaryAtlasStudio({
   const [showDayNight, setShowDayNight] = useState<boolean>(false);
   const [planetHour, setPlanetHour] = useState<number>(12);
   const [densityHeatmap, setDensityHeatmap] = useState<boolean>(false);
-  const [season, setSeason] = useState<SeasonId>("SPRING");
+  // (season state hoisted above terrain backdrop effect)
   const [showTwoHop, setShowTwoHop] = useState<boolean>(false);
   const [areaMode, setAreaMode] = useState<boolean>(false);
   const [areaPoints, setAreaPoints] = useState<Point2D[]>([]);
@@ -756,7 +783,10 @@ export function PlanetaryAtlasStudio({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragRef.current.active) return;
+      if (!dragRef.current.active) {
+        setHoverScreenPos({ x: e.clientX, y: e.clientY });
+        return;
+      }
       const rect = viewportRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dxScreen = e.clientX - dragRef.current.startX;
@@ -809,6 +839,24 @@ export function PlanetaryAtlasStudio({
       flyToNation(target);
     }
   }, [initialFocusNationId, nationsById, flyToNation]);
+
+  // Feature #1: Cinematic World Tour Auto-Pilot across 10 iconic stops
+  useEffect(() => {
+    if (!tourActive) return;
+    const stop = WORLD_TOUR_STOPS[tourIndex];
+    if (stop) {
+      const target = bundle.nations.find((n) => n.nationNum === stop.nationNum);
+      if (target) flyToNation(target);
+    }
+  }, [tourActive, tourIndex, bundle.nations, flyToNation]);
+
+  useEffect(() => {
+    if (!tourActive || !tourPlaying) return;
+    const timer = window.setInterval(() => {
+      setTourIndex((prev) => (prev + 1) % WORLD_TOUR_STOPS.length);
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [tourActive, tourPlaying]);
 
   // Pre-compute Alliance Arcs (highlights Tri-Border Alliance #1-#2-#3 + major alliances)
   const allianceArcs = useMemo(() => {
@@ -1550,6 +1598,7 @@ export function PlanetaryAtlasStudio({
             bundle={bundle}
             selectedNationId={selectedNationId}
             onSelectNation={(n) => setSelectedNationId(n.id)}
+            season={season}
           />
         ) : (
         <div
@@ -1992,6 +2041,60 @@ export function PlanetaryAtlasStudio({
                 })}
               </g>
             )}
+            {/* Feature #6: Concentric Distance Rings (500 / 1500 / 3000 km) */}
+            {showDistanceRings && selectedNation && (
+              <g pointerEvents="none">
+                {computeConcentricRingsNormalized(selectedNation.x, selectedNation.y, [500, 1500, 3000]).map((ring) => (
+                  <g key={`dring-${ring.km}`}>
+                    <ellipse
+                      cx={ring.cx * W}
+                      cy={ring.cy * H}
+                      rx={ring.rx * W}
+                      ry={ring.ry * H}
+                      fill="rgba(56,189,248,0.04)"
+                      stroke="#38bdf8"
+                      strokeOpacity={0.75}
+                      strokeWidth={Math.max(0.8, 1.4 / Math.sqrt(zoom))}
+                      strokeDasharray="6 4"
+                    />
+                    <text
+                      x={ring.cx * W}
+                      y={ring.cy * H - ring.ry * H - 4 / Math.sqrt(zoom)}
+                      textAnchor="middle"
+                      fontSize={Math.max(8, 11 / Math.sqrt(zoom))}
+                      fontWeight={700}
+                      fill="#7dd3fc"
+                      stroke="#020617"
+                      strokeWidth={2.5 / Math.sqrt(zoom)}
+                      paintOrder="stroke"
+                    >
+                      {ring.km.toLocaleString("vi-VN")} km
+                    </text>
+                  </g>
+                ))}
+              </g>
+            )}
+
+            {/* Atmospheric Seasonal Wind & Trade Current Veil (GPU Animated) */}
+            {showWindVeil && (
+              <g pointerEvents="none" opacity={0.42}>
+                {[0.22, 0.36, 0.5, 0.64, 0.78].map((latFrac, idx) => {
+                  const yPos = latFrac * H;
+                  const wave = idx % 2 === 0 ? 18 : -18;
+                  return (
+                    <path
+                      key={`wind-${idx}`}
+                      d={`M 0 ${yPos} Q ${W * 0.25} ${yPos + wave}, ${W * 0.5} ${yPos} T ${W} ${yPos}`}
+                      fill="none"
+                      stroke={idx === 2 ? "#fbbf24" : "#7dd3fc"}
+                      strokeWidth={1.6}
+                      strokeDasharray="14 22"
+                      className="atlas-flow-anim"
+                    />
+                  );
+                })}
+              </g>
+            )}
           </svg>
 
           {/* Top-Left Zoom & Quick Navigation Controls */}
@@ -2039,39 +2142,131 @@ export function PlanetaryAtlasStudio({
               <button
                 type="button"
                 onClick={focusTriBorder}
-                className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-500/30"
+                className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-500/30 cursor-pointer"
                 title="Bay tới Ngã Ba Tam Biên Aurelia"
               >
                 <Compass className="h-3.5 w-3.5" />
                 Tam Biên
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTourIndex(0);
+                  setTourPlaying(true);
+                  setTourActive((v) => !v);
+                }}
+                className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium cursor-pointer ${
+                  tourActive
+                    ? "bg-amber-400 text-slate-950 font-semibold"
+                    : "bg-slate-800/80 text-amber-200 hover:bg-slate-700"
+                }`}
+                title="Chế độ Du hành Toàn cầu Tự động (World Tour 10 kỳ quan)"
+              >
+                <Play className="h-3 w-3" />
+                Tour
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDistanceRings((v) => !v)}
+                className={`hidden sm:inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] cursor-pointer ${
+                  showDistanceRings
+                    ? "bg-cyan-500/25 text-cyan-200 border border-cyan-400/50"
+                    : "text-slate-300 hover:bg-slate-800"
+                }`}
+                title="Vòng tròn khoảng cách đồng tâm 500 / 1500 / 3000 km quanh quốc gia đang chọn"
+              >
+                Vòng km
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWindVeil((v) => !v)}
+                className={`hidden md:inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] cursor-pointer ${
+                  showWindVeil
+                    ? "bg-sky-500/25 text-sky-200 border border-sky-400/50"
+                    : "text-slate-300 hover:bg-slate-800"
+                }`}
+                title="Bật/tắt lớp gió mùa & hải lưu chuyển động"
+              >
+                Gió mùa
+              </button>
+              {!isMobile && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowMiniMap((v) => !v)}
+                    className={`rounded px-2 py-1 text-[11px] cursor-pointer ${
+                      showMiniMap ? "text-amber-300 bg-amber-500/15" : "text-slate-400 hover:bg-slate-800"
+                    }`}
+                    title="Hiện/ẩn Bản đồ Thu nhỏ Định vị (Mini-Map Radar)"
+                  >
+                    Radar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLegend((v) => !v)}
+                    className={`rounded px-2 py-1 text-[11px] cursor-pointer ${
+                      showLegend ? "text-amber-300 bg-amber-500/15" : "text-slate-400 hover:bg-slate-800"
+                    }`}
+                    title="Hiện/ẩn Bảng Chú giải Thấu kính"
+                  >
+                    Chú giải
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* Hover Pure-Wiki Tooltip */}
-            {hoveredNation && (
-              <div className="max-w-xs rounded-lg border border-slate-700 bg-slate-950/92 px-3 py-2 text-xs shadow-xl backdrop-blur">
-                <div className="flex items-center gap-1.5 font-semibold text-white">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: hoveredNation.color }}
-                  />
-                  #{hoveredNation.nationNum} {hoveredNation.name}
-                </div>
-                <div className="mt-1 text-[11px] text-slate-300">
-                  Thủ đô: <span className="text-cyan-300">{hoveredNation.capital}</span> •{" "}
-                  {BIOME_META[hoveredNation.biome].label}
-                </div>
-                <div className="mt-0.5 text-[11px] text-slate-400">
-                  {hoveredNation.latLabel}, {hoveredNation.lonLabel} • Cao độ{" "}
-                  {hoveredNation.elevationM.toLocaleString("vi-VN")} m • {hoveredNation.avgTempC}°C
-                </div>
-                <div className="mt-0.5 text-[11px] text-slate-400">
-                  Dân số: {hoveredNation.population.toLocaleString("vi-VN")} • Diện tích:{" "}
-                  {hoveredNation.areaKm2.toLocaleString("vi-VN")} km²
-                </div>
-              </div>
+            {/* Cinematic World Tour Floating Banner */}
+            {tourActive && (
+              <AtlasWorldTourBanner
+                stopIndex={tourIndex}
+                playing={tourPlaying}
+                onTogglePlay={() => setTourPlaying((v) => !v)}
+                onPrev={() => setTourIndex((i) => (i - 1 + WORLD_TOUR_STOPS.length) % WORLD_TOUR_STOPS.length)}
+                onNext={() => setTourIndex((i) => (i + 1) % WORLD_TOUR_STOPS.length)}
+                onClose={() => setTourActive(false)}
+              />
+            )}
+
+            {/* Rich Hover Pure-Wiki Tooltip with SVG Emblem & Economy Bars */}
+            {hoveredNation && !isMobile && (
+              <AtlasRichHoverCard nation={hoveredNation} screenPos={hoverScreenPos} />
             )}
           </div>
+
+          {/* Bottom-Left Live Viewport Inspector + Dynamic Legend */}
+          {!areaMode && (
+            <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-2 pointer-events-auto">
+              {showLegend && !isMobile && <AtlasLiveLegendCard lens={lens} />}
+              <AtlasViewportInspector
+                visibleNations={bundle.nations.filter(
+                  (n) =>
+                    n.x >= viewportBounds.minX &&
+                    n.x <= viewportBounds.maxX &&
+                    n.y >= viewportBounds.minY &&
+                    n.y <= viewportBounds.maxY
+                )}
+                zoom={zoom}
+              />
+            </div>
+          )}
+
+          {/* Bottom-Right Interactive Mini-Map Radar (Desktop & Tablet) */}
+          {showMiniMap && !isMobile && (
+            <div className="absolute bottom-3 right-3 z-10">
+              <AtlasMiniMapRadar
+                terrainPreviewUrl={terrainBackdropUrl}
+                viewBounds={viewportBounds}
+                selectedNation={selectedNation}
+                onJumpToNormalized={(nx, ny) => {
+                  const targetZoom = Math.max(zoom, 2.2);
+                  const newPanX = (0.5 - nx) * W * targetZoom;
+                  const newPanY = (0.5 - ny) * H * targetZoom;
+                  setZoom(targetZoom);
+                  setPan(clampPan(newPanX, newPanY, targetZoom));
+                }}
+              />
+            </div>
+          )}
 
           {/* #6 Polygon Area Measurement Floating Panel */}
           {areaMode && (

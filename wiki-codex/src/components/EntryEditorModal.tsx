@@ -24,6 +24,9 @@ import { computeEntryCompleteness } from "@/lib/wiki-intelligence";
 import { IconSigilPicker } from "./IconSigilPicker";
 import { MarkdownCodexRenderer } from "./MarkdownCodexRenderer";
 import { DynamicPropertiesEditor } from "./DynamicPropertiesPanel";
+import { EntityEmblemSVG } from "./EntityVisualWidgets";
+import { WORLD_CURRENCIES, createDefaultEconomyProfile } from "@/lib/economy-engine";
+import type { EntityEmblemConfig, EntryEconomyProfile } from "@/types/codex";
 
 interface EntryEditorModalProps {
   workspaceId: string;
@@ -103,6 +106,12 @@ export function EntryEditorModal({
   );
   const [privateNotes, setPrivateNotes] = useState(entry?.privateNotes || "");
   const [gallery, setGallery] = useState<GalleryItem[]>(entry?.gallery || []);
+  const [economyProfile, setEconomyProfile] = useState<EntryEconomyProfile | undefined>(
+    entry?.economyProfile
+  );
+  const [emblemConfig, setEmblemConfig] = useState<EntityEmblemConfig | undefined>(
+    entry?.emblemConfig
+  );
   const [changeSummary, setChangeSummary] = useState("");
   const [splitPreview, setSplitPreview] = useState(true);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -351,6 +360,8 @@ export function EntryEditorModal({
         sourcesMarkdown,
         privateNotes,
         gallery: gallery.filter((g) => g.fullUrl || g.thumbUrl),
+        economyProfile,
+        emblemConfig,
         changeSummary: changeSummary.trim() || undefined
       };
 
@@ -1186,6 +1197,178 @@ export function EntryEditorModal({
               onChange={(e) => setPrivateNotes(e.target.value)}
               className="w-full rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs"
             />
+          </div>
+        </div>
+
+        {/* V7.0 Economy Profile & Heraldry SVG Emblem Setup */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Economy Quick-Setup */}
+          <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-amber-300">
+                Ⱥ Hồ sơ Kinh tế &amp; Hạ tầng (5 Cụm Thanh Dữ liệu)
+              </span>
+              {economyProfile ? (
+                <button
+                  type="button"
+                  onClick={() => setEconomyProfile(undefined)}
+                  className="text-[11px] text-rose-300 hover:underline cursor-pointer"
+                >
+                  Tắt phân hệ Kinh tế
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEconomyProfile(createDefaultEconomyProfile(title || "Thực thể"))}
+                  className="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 font-semibold cursor-pointer"
+                >
+                  + Khởi tạo Kinh tế
+                </button>
+              )}
+            </div>
+            {economyProfile ? (
+              <div className="space-y-2 text-xs">
+                <input
+                  type="text"
+                  value={economyProfile.economicTierLabel}
+                  onChange={(e) =>
+                    setEconomyProfile({ ...economyProfile, economicTierLabel: e.target.value })
+                  }
+                  placeholder="Phân hạng kinh tế (VD: Trung tâm Thương mại Khu vực)"
+                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={economyProfile.currencyCode}
+                    onChange={(e) => {
+                      const cur = WORLD_CURRENCIES.find((c) => c.code === e.target.value);
+                      if (cur) {
+                        setEconomyProfile({
+                          ...economyProfile,
+                          currencyCode: cur.code,
+                          currencyName: cur.name,
+                          exchangeRateToAurel: cur.ratePerAurel
+                        });
+                      }
+                    }}
+                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1.5 text-xs"
+                  >
+                    {WORLD_CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code} — {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-muted)]">
+                    <span>Xuất khẩu:</span>
+                    <strong className="text-emerald-300 font-mono">{economyProfile.tradeBalance.exportsShare}%</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  ✓ Đã sẵn sàng 5 cụm thanh (Ngành 100%, Ngân sách 100%, 6 Chỉ số Phát triển, Cán cân &amp; Thanh tùy biến). Bạn có thể kéo thanh trượt trực tiếp trong tab <strong>Kinh tế &amp; Hạ tầng</strong> sau khi lưu.
+                </p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Bật phân hệ này để hiển thị 5 cụm thanh dữ liệu Kinh tế, Quy đổi Tiền tệ và So sánh Đa quốc gia cho thực thể.
+              </p>
+            )}
+          </div>
+
+          {/* Heraldry SVG Emblem Customizer */}
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/40 p-3 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[var(--accent)]">
+                ⚜ Huy hiệu / Quốc kỳ SVG
+              </span>
+              {emblemConfig ? (
+                <button
+                  type="button"
+                  onClick={() => setEmblemConfig(undefined)}
+                  className="text-[11px] text-rose-300 hover:underline cursor-pointer"
+                >
+                  Gỡ huy hiệu
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEmblemConfig({
+                      primaryColor: "#3B82F6",
+                      secondaryColor: "#D4AF37",
+                      shape: "shield",
+                      motif: "crown"
+                    })
+                  }
+                  className="text-[11px] px-2.5 py-1 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] font-semibold cursor-pointer"
+                >
+                  + Tạo Huy hiệu SVG
+                </button>
+              )}
+            </div>
+            {emblemConfig ? (
+              <div className="flex items-center gap-3">
+                <EntityEmblemSVG config={emblemConfig} sigil={sigil} size={56} />
+                <div className="flex-1 grid grid-cols-2 gap-1.5 text-xs">
+                  <select
+                    value={emblemConfig.shape}
+                    onChange={(e) =>
+                      setEmblemConfig({
+                        ...emblemConfig,
+                        shape: e.target.value as EntityEmblemConfig["shape"]
+                      })
+                    }
+                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-xs"
+                  >
+                    <option value="shield">Khiên cổ điển</option>
+                    <option value="crest">Quốc huy</option>
+                    <option value="banner">Cờ hiệu</option>
+                    <option value="seal">Ấn triện tròn</option>
+                  </select>
+                  <select
+                    value={emblemConfig.motif}
+                    onChange={(e) =>
+                      setEmblemConfig({
+                        ...emblemConfig,
+                        motif: e.target.value as EntityEmblemConfig["motif"]
+                      })
+                    }
+                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-xs"
+                  >
+                    <option value="crown">Vương miện</option>
+                    <option value="star">Tinh tú</option>
+                    <option value="waves">Hải dương</option>
+                    <option value="tree">Rừng xanh</option>
+                    <option value="mountain">Sơn mạch</option>
+                    <option value="sun">Thái dương</option>
+                    <option value="scales">Cán cân</option>
+                    <option value="compass">La bàn</option>
+                  </select>
+                  <label className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                    <input
+                      type="color"
+                      value={emblemConfig.primaryColor}
+                      onChange={(e) => setEmblemConfig({ ...emblemConfig, primaryColor: e.target.value })}
+                      className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer"
+                    />
+                    <span>Nền chính</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                    <input
+                      type="color"
+                      value={emblemConfig.secondaryColor}
+                      onChange={(e) => setEmblemConfig({ ...emblemConfig, secondaryColor: e.target.value })}
+                      className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer"
+                    />
+                    <span>Viền &amp; Họa tiết</span>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Sinh huy hiệu vector siêu nhẹ hiển thị cạnh tiêu đề hồ sơ và trong bảng So sánh Kinh tế.
+              </p>
+            )}
           </div>
         </div>
 

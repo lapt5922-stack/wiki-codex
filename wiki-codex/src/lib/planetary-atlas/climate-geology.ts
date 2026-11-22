@@ -1,3 +1,7 @@
+import {
+  CURRENCY_BY_CONTINENT_DEF,
+  buildNationEconomyProfile
+} from "@/lib/economy-engine";
 import type {
   AtlasBiomeId,
   AtlasWikiLens,
@@ -732,7 +736,47 @@ export function resolveNationLensColor(
       };
       return map[nation.biome];
     }
+    case "ECONOMY": {
+      const ep = buildNationEconomyProfile(nation);
+      const lit = ep.developmentMeters.find((m) => m.id === "dev-literacy")?.score ?? 60;
+      const inf = ep.developmentMeters.find((m) => m.id === "dev-infra")?.score ?? 60;
+      const avg = (lit + inf) / 2;
+      if (avg >= 85) return "#10b981";
+      if (avg >= 78) return "#34d399";
+      if (avg >= 72) return "#38bdf8";
+      if (avg >= 66) return "#fbbf24";
+      if (avg >= 60) return "#f97316";
+      return "#ef4444";
+    }
+    case "CURRENCY": {
+      return CURRENCY_BY_CONTINENT_DEF[nation.continent]?.color ?? "#d4af37";
+    }
+    case "TRADE_BALANCE": {
+      const ep = buildNationEconomyProfile(nation);
+      const diff = ep.tradeBalance.exportsShare - ep.tradeBalance.importsShare;
+      if (diff >= 10) return "#059669";
+      if (diff >= 4) return "#34d399";
+      if (diff >= -4) return "#f59e0b";
+      if (diff >= -10) return "#38bdf8";
+      return "#6366f1";
+    }
   }
+}
+
+/** Feature #6: Concentric Distance Rings in normalized [0..1] map coordinates (64,000 km equatorial circumference) */
+export function computeConcentricRingsNormalized(
+  centerX: number,
+  centerY: number,
+  kmRadii: number[] = [500, 1500, 3000],
+): Array<{ km: number; rx: number; ry: number; cx: number; cy: number }> {
+  // Equator circumference = 64,000 km across width=1.0; height covers 32,000 km pole-to-pole
+  return kmRadii.map((km) => ({
+    km,
+    cx: centerX,
+    cy: centerY,
+    rx: km / 64000,
+    ry: km / 32000,
+  }));
 }
 
 export interface ExpeditionTravelReport {

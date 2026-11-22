@@ -13,6 +13,7 @@ import type {
   TableFieldValue,
 } from "@/types/codex";
 import { slugifyVietnamese } from "@/lib/vietnamese";
+import { buildNationEconomyProfile, deriveNationEmblemConfig } from "@/lib/economy-engine";
 import { BIOME_META, DIPLOMACY_META, TIER_META } from "./climate-geology";
 import { buildPlanetaryAtlasBundle } from "./generator";
 import { CONTINENT_NAME_VI } from "./nations-data";
@@ -642,9 +643,12 @@ export function buildAll360NationEntries(
         ...(nation.isTriBorder ? ["lien-minh-tam-bien"] : []),
       ],
       tabOverrides: {
+        enabled: ["economy"],
         disabled: ["power"],
       },
       extraFields,
+      economyProfile: buildNationEconomyProfile(nation),
+      emblemConfig: deriveNationEmblemConfig(nation),
       roster: buildNationRoster(nation, ruler),
       lawsAndCustoms: buildNationLaws(nation),
       resourceItems: buildNationResources(nation, firstExport, firstImport),

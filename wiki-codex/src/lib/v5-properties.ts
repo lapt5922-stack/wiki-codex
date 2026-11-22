@@ -138,9 +138,13 @@ export function resolveEntryTabs(entry: Entry, entryType?: EntryType | null): En
 
   for (const extra of entry.tabOverrides?.enabled ?? []) {
     if (!filtered.includes(extra)) {
-      if (extra === "power") filtered.splice(1, 0, "power");
+      if (extra === "economy") filtered.splice(1, 0, "economy");
+      else if (extra === "power") filtered.splice(1, 0, "power");
       else filtered.push(extra);
     }
+  }
+  if (entry.economyProfile && !filtered.includes("economy") && !entry.tabOverrides?.disabled?.includes("economy")) {
+    filtered.splice(1, 0, "economy");
   }
   return filtered;
 }

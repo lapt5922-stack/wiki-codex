@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { BookOpen, Globe2, Handshake, History, Languages, Package, Search, X } from "lucide-react";
+import { BookOpen, Coins, Globe2, Handshake, History, Languages, Package, Search, X } from "lucide-react";
 import { DIPLOMACY_META } from "@/lib/planetary-atlas/climate-geology";
 import { CONTINENT_NAME_VI } from "@/lib/planetary-atlas/nations-data";
 import { analyzeNationToponymy } from "@/lib/wiki-auditor-pro";
+import { buildNationEconomyProfile } from "@/lib/economy-engine";
 import type { DiplomacyStatus, PlanetaryAtlasBundle, PlanetaryNation } from "@/lib/planetary-atlas/types";
 
 interface WorldAnalyticsHubModalProps {
@@ -14,7 +15,7 @@ interface WorldAnalyticsHubModalProps {
   onOpenWikiEntry: (entryId: string) => void;
 }
 
-type HubTab = "diplomacy" | "trade" | "timeline" | "toponymy";
+type HubTab = "diplomacy" | "trade" | "economy" | "timeline" | "toponymy";
 
 const PARALLEL_TIMELINE_LANES = [
   {
@@ -137,6 +138,26 @@ export function WorldAnalyticsHubModal({
       .map(analyzeNationToponymy);
   }, [bundle.nations, query]);
 
+  const economicAlmanac = useMemo(() => {
+    const items = bundle.nations.map((n) => {
+      const ep = buildNationEconomyProfile(n);
+      const literacy = ep.developmentMeters.find((m) => m.id === "dev-literacy")?.score ?? 0;
+      const infra = ep.developmentMeters.find((m) => m.id === "dev-infra")?.score ?? 0;
+      const urban = ep.demographicsBars.find((d) => d.id === "demo-urban")?.percentage ?? 0;
+      const surplus = ep.tradeBalance.exportsShare - ep.tradeBalance.importsShare;
+      return { nation: n, ep, literacy, infra, urban, surplus };
+    });
+    return {
+      topLiteracy: [...items].sort((a, b) => b.literacy - a.literacy).slice(0, 10),
+      topInfra: [...items].sort((a, b) => b.infra - a.infra).slice(0, 10),
+      topSurplus: [...items].sort((a, b) => b.surplus - a.surplus).slice(0, 10),
+      topUrban: [...items].sort((a, b) => b.urban - a.urban).slice(0, 10),
+      avgLiteracy: Math.round(items.reduce((s, x) => s + x.literacy, 0) / Math.max(1, items.length)),
+      avgInfra: Math.round(items.reduce((s, x) => s + x.infra, 0) / Math.max(1, items.length)),
+      surplusNations: items.filter((x) => x.surplus > 0).length
+    };
+  }, [bundle.nations]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5 backdrop-blur-sm">
       <div className="animate-codex-scale-in flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
@@ -169,6 +190,7 @@ export function WorldAnalyticsHubModal({
               [
                 ["diplomacy", Handshake, `Ngoại giao (${bundle.diplomacy.length})`],
                 ["trade", Package, `Giao thương (${bundle.resourceFlows.length})`],
+                ["economy", Coins, "Niên giám Kinh tế 360"],
                 ["timeline", History, "Biên niên sử Đa làn"],
                 ["toponymy", Languages, "Từ nguyên học 360 QG"],
               ] as const
@@ -359,6 +381,68 @@ export function WorldAnalyticsHubModal({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {tab === "economy" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="rounded-xl border border-purple-500/35 bg-purple-500/10 p-3">
+                  <div className="text-slate-400">Học vấn Trung bình (360 Quốc gia)</div>
+                  <div className="text-xl font-mono font-bold text-purple-300">{economicAlmanac.avgLiteracy}%</div>
+                </div>
+                <div className="rounded-xl border border-sky-500/35 bg-sky-500/10 p-3">
+                  <div className="text-slate-400">Hạ tầng Giao thông Trung bình</div>
+                  <div className="text-xl font-mono font-bold text-sky-300">{economicAlmanac.avgInfra}%</div>
+                </div>
+                <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3">
+                  <div className="text-slate-400">Quốc gia Thặng dư Thương mại</div>
+                  <div className="text-xl font-mono font-bold text-emerald-300">{economicAlmanac.surplusNations} / 360</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(
+                  [
+                    { title: "Top 10 Chỉ số Học vấn (Literacy)", color: "#a78bfa", rows: economicAlmanac.topLiteracy, fmt: (x: (typeof economicAlmanac.topLiteracy)[number]) => `${x.literacy}%`, pct: (x: (typeof economicAlmanac.topLiteracy)[number]) => x.literacy },
+                    { title: "Top 10 Độ phủ Hạ tầng Giao thông", color: "#38bdf8", rows: economicAlmanac.topInfra, fmt: (x: (typeof economicAlmanac.topInfra)[number]) => `${x.infra}%`, pct: (x: (typeof economicAlmanac.topInfra)[number]) => x.infra },
+                    { title: "Top 10 Thặng dư Xuất khẩu", color: "#10b981", rows: economicAlmanac.topSurplus, fmt: (x: (typeof economicAlmanac.topSurplus)[number]) => `+${x.surplus}%`, pct: (x: (typeof economicAlmanac.topSurplus)[number]) => Math.min(100, 50 + x.surplus) },
+                    { title: "Top 10 Tỷ lệ Đô thị hóa", color: "#f59e0b", rows: economicAlmanac.topUrban, fmt: (x: (typeof economicAlmanac.topUrban)[number]) => `${x.urban}%`, pct: (x: (typeof economicAlmanac.topUrban)[number]) => x.urban }
+                  ] as const
+                ).map((board) => (
+                  <div key={board.title} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: board.color }}>
+                      {board.title}
+                    </h4>
+                    <div className="space-y-1.5">
+                      {board.rows.map((item, idx) => (
+                        <div key={item.nation.id} className="flex items-center gap-2 text-xs">
+                          <span className="w-5 text-[10px] font-mono text-slate-500">#{idx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onOpenWikiEntry(`ent-nation-${item.nation.nationNum}`);
+                              onClose();
+                            }}
+                            className="w-36 truncate text-left text-slate-200 hover:text-amber-300 cursor-pointer"
+                          >
+                            {item.nation.shortName}
+                          </button>
+                          <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${board.pct(item)}%`, backgroundColor: board.color }}
+                            />
+                          </div>
+                          <span className="w-12 text-right font-mono font-bold text-slate-200">
+                            {board.fmt(item)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
