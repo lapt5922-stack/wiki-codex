@@ -296,6 +296,24 @@ function hydrateV2State(raw: Partial<CodexDatabaseState>): CodexDatabaseState {
         state.relations.push(r);
       }
     }
+  } else {
+    // Backfill rich Kingdom modules onto existing 360 nation entries without overwriting manual edits
+    const seedNationById = new Map(
+      seed.entries.filter((e) => e.id.startsWith("ent-nation-")).map((e) => [e.id, e])
+    );
+    for (const ent of state.entries) {
+      if (!ent.id.startsWith("ent-nation-") || ent.roster?.length) continue;
+      const src = seedNationById.get(ent.id);
+      if (!src) continue;
+      ent.epigraph = ent.epigraph ?? src.epigraph;
+      ent.roster = src.roster;
+      ent.lawsAndCustoms = src.lawsAndCustoms;
+      ent.resourceItems = src.resourceItems;
+      ent.rumorsAndSecrets = src.rumorsAndSecrets;
+      ent.customSections = src.customSections;
+      ent.breakdownBars = src.breakdownBars;
+      ent.eraSnapshots = src.eraSnapshots;
+    }
   }
 
   return state;

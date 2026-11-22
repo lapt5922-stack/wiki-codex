@@ -1,15 +1,22 @@
 import type {
   Category,
+  EntityCustomSection,
+  EntityEpigraph,
   Entry,
+  EntryCustomLaw,
   EntryCustomProperty,
   EntryRelation,
+  EntryResourceItem,
+  EntryRosterMember,
+  EntryRumorSecret,
+  ProportionalBarItem,
   TableFieldValue,
 } from "@/types/codex";
 import { slugifyVietnamese } from "@/lib/vietnamese";
 import { BIOME_META, DIPLOMACY_META, TIER_META } from "./climate-geology";
 import { buildPlanetaryAtlasBundle } from "./generator";
 import { CONTINENT_NAME_VI } from "./nations-data";
-import type { ContinentId, PlanetaryNation } from "./types";
+import type { AtlasBiomeId, ContinentId, PlanetaryNation } from "./types";
 
 const CONTINENT_CATEGORY_META: Record<
   ContinentId,
@@ -130,6 +137,267 @@ function buildProvincesTable(nation: PlanetaryNation): TableFieldValue {
       [`Hành lang Biên giới ${nation.regionCode}`, `Nam ${nation.shortName}`, `Trạm kết nối giao thương thuộc khối ${nation.bloc}`],
     ],
   };
+}
+
+const EPIGRAPH_BY_BIOME: Record<AtlasBiomeId, (n: PlanetaryNation) => EntityEpigraph> = {
+  TEMPERATE_PLAINS: (n) => ({
+    quote: `Cánh đồng xanh nuôi dưỡng muôn dân, nhưng bộ luật và thư viện tại ${n.capital} mới giữ bền nền văn hiến ngàn năm.`,
+    author: `Hiến chương ${n.shortName}`,
+    source: `Khắc trên đại sảnh nghị sự ${n.capital} (${n.foundingEra})`,
+  }),
+  ARID_CANYON: (n) => ({
+    quote: `Đá hẻm núi có thể khô cằn trước nắng gió, nhưng dấu chân thương đoàn qua ${n.shortName} chưa từng một ngày ngưng nghỉ.`,
+    author: `Biên niên sử Đá Đỏ`,
+    source: `Bia cổng chính ${n.capital}`,
+  }),
+  ASH_VOLCANIC: (n) => ({
+    quote: `Từ lòng đất rực lửa, bàn tay thợ luyện kim ${n.shortName} rèn nên thủy tinh trong suốt và hơi ấm cho mọi mái nhà.`,
+    author: `Nguyên lão viện ${n.shortName}`,
+    source: `Hồ sơ Địa nhiệt ${n.capital}`,
+  }),
+  SAND_DESERT: (n) => ({
+    quote: `Người đi sa mạc không nhìn đường bằng cát bụi, mà bằng tinh tú trên cao và bản đồ ốc đảo của ${n.capital}.`,
+    author: `Sổ tay Dẫn đường ${n.shortName}`,
+    source: `Thư viện Ốc đảo ${n.capital}`,
+  }),
+  TROPICAL_JUNGLE: (n) => ({
+    quote: `Mỗi tán lá rừng mưa là một trang sách thuốc; giữ được rừng xanh là giữ trọn sinh khí của ${n.shortName}.`,
+    author: `Viện Thực vật học ${n.capital}`,
+    source: `Bản khắc Lục Bảo (${n.foundingEra})`,
+  }),
+  ALPINE_PEAKS: (n) => ({
+    quote: `Đỉnh cao không ngăn cách con người, mà nâng tầm mắt của ${n.shortName} vươn xa qua mọi rặng sơn mạch.`,
+    author: `Hội đồng Sơn cước ${n.shortName}`,
+    source: `Trạm Quan trắc Cao nguyên ${n.capital}`,
+  }),
+  GLACIAL_ICE: (n) => ({
+    quote: `Giữa băng nguyên tĩnh lặng, ánh cực quang và những lõi băng cổ lưu giữ ký ức nguyên sơ của cả hành tinh.`,
+    author: `Hội đồng Khảo sát ${n.shortName}`,
+    source: `Nhật ký Băng nguyên ${n.capital}`,
+  }),
+  CORAL_SEA: (n) => ({
+    quote: `Nơi hải lưu gặp bờ san hô là nơi cánh buồm muôn phương hội tụ về thương cảng ${n.capital}.`,
+    author: `Công ước Hải cảng ${n.shortName}`,
+    source: `Hải đăng Cổ ${n.capital}`,
+  }),
+  ARCHIPELAGO: (n) => ({
+    quote: `Đại dương không chia cắt quần đảo ${n.shortName}, mà là con đường rộng mở nối liền mọi hải đảo.`,
+    author: `Hội đồng Thuyền trưởng ${n.shortName}`,
+    source: `Tàng thư Hải đồ ${n.capital}`,
+  }),
+};
+
+function buildNationEpigraph(nation: PlanetaryNation): EntityEpigraph {
+  if (nation.nationNum === 1) {
+    return {
+      quote: "Tri thức là đường biên giới vững bền nhất; cùng Zog-Koth và Ignisia, chúng ta giữ cho ngọn đèn Tam Biên không bao giờ tắt.",
+      author: "Hiến chương Liên minh Tam Biên",
+      source: "Khắc tại Thư viện Hoàng gia Aurelion Prime",
+    };
+  }
+  if (nation.nationNum === 2) {
+    return {
+      quote: "Mỗi vách đá Koth-Varr là một nhịp cầu; liên minh cùng Valoria và Ignisia biến hẻm núi thành đại lộ của hòa bình.",
+      author: "Đại Hội đồng Công xã Zog-Koth",
+      source: "Cổng Bazan Koth-Varr",
+    };
+  }
+  if (nation.nationNum === 3) {
+    return {
+      quote: "Lửa địa nhiệt không phải để thiêu đốt, mà để thắp sáng lò luyện kim và sưởi ấm tình đồng minh Tam Biên.",
+      author: "Nguyên lão viện Cinderhold",
+      source: "Bia Thủy tinh Núi lửa Ignisia",
+    };
+  }
+  return EPIGRAPH_BY_BIOME[nation.biome](nation);
+}
+
+function buildNationRoster(nation: PlanetaryNation, ruler: string): EntryRosterMember[] {
+  const isMaritime = nation.biome === "CORAL_SEA" || nation.biome === "ARCHIPELAGO";
+  const thirdDept = isMaritime
+    ? "Hàng hải & Thương cảng"
+    : nation.biome === "ASH_VOLCANIC" || nation.biome === "ALPINE_PEAKS"
+      ? "Địa chất & Công trình"
+      : "Giao thương & Dân sinh";
+  const thirdTitle = isMaritime
+    ? `Tổng quản Hải cảng & Hải đồ ${nation.capital}`
+    : nation.biome === "ASH_VOLCANIC" || nation.biome === "ALPINE_PEAKS"
+      ? `Chánh Kỹ sư Địa chất & Khoáng sản ${nation.shortName}`
+      : `Tổng quản Thương đoàn & Nông chính ${nation.shortName}`;
+
+  return [
+    {
+      id: `ros-${nation.nationNum}-1`,
+      name: ruler,
+      roleTitle: "Cơ quan Lập pháp & Hành pháp Tối cao",
+      department: "Quốc chính",
+      rankOrder: 1,
+      tenure: `${nation.foundingEra} – Hiện tại`,
+      status: "active",
+      note: `Điều hành bộ máy ${nation.governmentType.toLowerCase()} tại thủ đô ${nation.capital}.`,
+    },
+    {
+      id: `ros-${nation.nationNum}-2`,
+      name: `Viện Lưu trữ & Sử học ${nation.capital}`,
+      roleTitle: "Cơ quan Bảo tồn Văn hiến & Ngoại giao",
+      department: "Học thuật & Lưu trữ",
+      rankOrder: 2,
+      tenure: "Thường trực",
+      status: "active",
+      note: `Biên soạn niên giám bằng ${nation.primaryLanguage} và quản lý văn bản hiệp ước trong khối ${nation.bloc}.`,
+    },
+    {
+      id: `ros-${nation.nationNum}-3`,
+      name: `Hội đồng ${thirdDept} ${nation.shortName}`,
+      roleTitle: thirdTitle,
+      department: thirdDept,
+      rankOrder: 3,
+      tenure: "Thường trực",
+      status: "active",
+      note: `Điều phối hạ tầng giao thương nội vùng ${nation.regionCode} và kết nối các quốc gia láng giềng.`,
+    },
+  ];
+}
+
+function buildNationLaws(nation: PlanetaryNation): EntryCustomLaw[] {
+  const biomeLabel = BIOME_META[nation.biome].label;
+  return [
+    {
+      id: `law-1-${nation.nationNum}`,
+      title: `Hiến chương Hành chính ${nation.shortName}`,
+      category: "law",
+      summary: `Quy định phân cấp quản trị theo thể chế ${nation.governmentType.toLowerCase()} và bảo vệ quyền lưu trữ văn thư dân sự tại ${nation.capital}.`,
+      enforcement: `Hội đồng Pháp chế & Tòa án Hành chính ${nation.capital}`,
+    },
+    {
+      id: `law-2-${nation.nationNum}`,
+      title: `Lễ hội Mùa & Giao lưu Văn hiến ${nation.shortName}`,
+      category: "custom",
+      summary: `Mỗi năm cư dân ${nation.capital} và các tỉnh tổ chức tuần lễ trao đổi sử liệu, sản vật ${biomeLabel.toLowerCase()} và đón tiếp đoàn học giả từ khối ${nation.bloc}.`,
+      enforcement: "Phong tục cộng đồng được bảo trợ",
+    },
+    {
+      id: `law-3-${nation.nationNum}`,
+      title: `Điều Cấm kỵ Xâm hại Hệ sinh thái & Thư viện`,
+      category: "taboo",
+      summary: `Nghiêm cấm hủy hoại bản đồ trắc địa, thư tịch cổ hoặc khai thác quá mức tài nguyên đặc hữu vùng ${biomeLabel.toLowerCase()}.`,
+      enforcement: `Tước quyền thương mại & trục xuất khỏi phân khu ${nation.regionCode}`,
+    },
+  ];
+}
+
+const LOCAL_STAPLE_BY_BIOME: Record<AtlasBiomeId, { local: string; importNeed: string }> = {
+  TEMPERATE_PLAINS: { local: "Ngũ cốc & Hệ thống Kênh tưới Ôn đới", importNeed: "Khoáng sản đặc thù & Gia vị nhiệt đới" },
+  ARID_CANYON: { local: "Đá Bazan Kiến trúc & Mạch nước ngầm", importNeed: "Gỗ xây dựng & Lương thực đồng bằng" },
+  ASH_VOLCANIC: { local: "Năng lượng Địa nhiệt & Thủy tinh Núi lửa", importNeed: "Nông sản ôn đới & Vải sợi tự nhiên" },
+  SAND_DESERT: { local: "Ốc đảo Chà là & Cát Thạch anh tinh khiết", importNeed: "Nước ngọt dự trữ & Gỗ đóng xe" },
+  TROPICAL_JUNGLE: { local: "Dược thảo Rừng mưa & Gỗ Quý bền vững", importNeed: "Quặng kim loại & Dụng cụ quang học" },
+  ALPINE_PEAKS: { local: "Quặng Bạc, Đá Cẩm thạch & Thủy điện cao nguyên", importNeed: "Ngũ cốc đồng bằng & Muối biển" },
+  GLACIAL_ICE: { local: "Lõi Băng khảo cổ & Hải sản vùng lạnh", importNeed: "Nhiên liệu sưởi, Lương thực & Vải len" },
+  CORAL_SEA: { local: "Ngọc trai San hô & Xưởng Đóng tàu Hải cảng", importNeed: "Quặng sắt & Gỗ tùng nội địa" },
+  ARCHIPELAGO: { local: "Hương liệu Hải đảo & Hải đồ Viễn dương", importNeed: "Đá xây dựng & Kim loại luyện sẵn" },
+};
+
+function buildNationResources(
+  nation: PlanetaryNation,
+  exportName: string | null,
+  importName: string | null,
+): EntryResourceItem[] {
+  const fallback = LOCAL_STAPLE_BY_BIOME[nation.biome];
+  return [
+    {
+      id: `res-${nation.nationNum}-1`,
+      name: exportName || fallback.local,
+      abundance: nation.tier === "IMPERIAL_REALM" ? "Độc quyền" : "Dồi dào",
+      tradeRole: "Xuất khẩu chủ lực",
+      note: `Mặt hàng xuất khẩu tiêu biểu của ${nation.shortName} phân phối qua mạng lưới giao thương ${nation.bloc}.`,
+    },
+    {
+      id: `res-${nation.nationNum}-2`,
+      name: fallback.local,
+      abundance: "Ổn định",
+      tradeRole: "Nội địa",
+      note: `Nguồn lực nền tảng bảo đảm đời sống dân cư (${nation.population.toLocaleString("vi-VN")} người) tại ${nation.regionName}.`,
+    },
+    {
+      id: `res-${nation.nationNum}-3`,
+      name: importName || fallback.importNeed,
+      abundance: "Khan hiếm",
+      tradeRole: "Nhập khẩu",
+      note: `Nhập khẩu định kỳ qua các hiệp định thông thương liên lục địa nhằm cân bằng cơ cấu kinh tế.`,
+    },
+  ];
+}
+
+function buildNationRumors(nation: PlanetaryNation): EntryRumorSecret[] {
+  const truth = 45 + ((nation.nationNum * 19) % 45);
+  return [
+    {
+      id: `rum-${nation.nationNum}-1`,
+      title: `Dấu tích Địa tầng Cổ dưới nền ${nation.capital}`,
+      tier: "rumor",
+      truthPercent: truth,
+      content: `Các nhà khảo cổ địa phương tại ${nation.capital} ghi nhận những mảng đá khắc ký tự trắc địa có niên đại sớm hơn cả ${nation.foundingEra}, được cho là cột mốc đo đạc của nền văn minh tiền sử.`,
+      sourceLabel: `Truyền thuyết học giới ${nation.shortName}`,
+    },
+    {
+      id: `rum-${nation.nationNum}-2`,
+      title: `Bản đồ Dự phòng & Kho Lưu trữ Mật ${nation.regionCode}`,
+      tier: "secret",
+      truthPercent: 100,
+      content: `Viện Lưu trữ ${nation.capital} cất giữ một bản sao đầy đủ toàn bộ mật ước biên giới và dữ liệu khí hậu 500 năm của khối ${nation.bloc} trong hầm chống ẩm dưới lòng đất.`,
+      sourceLabel: `Hồ sơ mật Văn khố ${nation.capital}`,
+      gmOnly: true,
+    },
+  ];
+}
+
+function buildNationCustomSections(nation: PlanetaryNation): EntityCustomSection[] {
+  const biomeLabel = BIOME_META[nation.biome].label;
+  return [
+    {
+      id: `sec-${nation.nationNum}-1`,
+      title: `Kiến trúc & Quy hoạch Đô thị ${nation.capital}`,
+      sigil: "◈",
+      content: `Được xây dựng ở cao độ trung bình ${nation.elevationM.toLocaleString("vi-VN")} m với nền nhiệt ${nation.avgTempC} °C, các đô thị tại ${nation.shortName} áp dụng vật liệu bản địa của vùng ${biomeLabel.toLowerCase()}, tối ưu thông gió tự nhiên, thoát nước và bảo quản thư tịch khỏi biến động khí hậu.`,
+    },
+    {
+      id: `sec-${nation.nationNum}-2`,
+      title: `Văn hóa, Ngôn ngữ & Đời sống Học thuật`,
+      sigil: "✦",
+      content: `Tiếng ${nation.primaryLanguage} là sợi dây gắn kết văn học, lịch sử và hành chính của ${nation.shortName}. Hệ thống thư viện công cộng và trường trắc địa tại ${nation.capital} thường xuyên trao đổi học giả với các quốc gia thuộc ${nation.bloc}.`,
+    },
+  ];
+}
+
+function buildNationBreakdownBars(nation: PlanetaryNation): ProportionalBarItem[] {
+  const primaryPct = 56 + ((nation.nationNum * 7) % 24); // 56..79%
+  const blocPct = Math.min(34, 14 + ((nation.nationNum * 5) % 18)); // 14..31%
+  const scholarPct = Math.max(4, 100 - primaryPct - blocPct);
+  const adjustedPrimary = 100 - blocPct - scholarPct;
+  return [
+    {
+      id: `bar-${nation.nationNum}-1`,
+      groupTitle: "Cơ cấu Ngôn ngữ & Giao tiếp Hành chính",
+      label: nation.primaryLanguage,
+      percentage: adjustedPrimary,
+      color: nation.color,
+    },
+    {
+      id: `bar-${nation.nationNum}-2`,
+      groupTitle: "Cơ cấu Ngôn ngữ & Giao tiếp Hành chính",
+      label: `Ngôn ngữ khối ${nation.bloc}`,
+      percentage: blocPct,
+      color: "#38bdf8",
+    },
+    {
+      id: `bar-${nation.nationNum}-3`,
+      groupTitle: "Cơ cấu Ngôn ngữ & Giao tiếp Hành chính",
+      label: "Tiếng Hàn lâm Chung & Thương ngữ",
+      percentage: scholarPct,
+      color: "#fbbf24",
+    },
+  ];
 }
 
 export function buildPlanetaryContinentCategories(
@@ -333,6 +601,11 @@ export function buildAll360NationEntries(
       },
     ];
 
+    const firstExport = flows.find((f) => f.sourceNationId === nation.id)?.resourceName ?? null;
+    const firstImport = flows.find((f) => f.targetNationId === nation.id)?.resourceName ?? null;
+    const popEarly = Math.max(12_000, Math.round(nation.population * 0.22));
+    const popMid = Math.max(25_000, Math.round(nation.population * 0.61));
+
     const slug = slugifyVietnamese(`quoc-gia-${nation.nationNum}-${nation.shortName}`);
 
     return {
@@ -356,6 +629,7 @@ export function buildAll360NationEntries(
         `#${nation.nationNum}`,
         nation.capital,
       ],
+      epigraph: buildNationEpigraph(nation),
       featured: nation.nationNum <= 10 || Boolean(nation.isTriBorder),
       spoilerGate: false,
       spoilerLabel: "",
@@ -371,36 +645,33 @@ export function buildAll360NationEntries(
         disabled: ["power"],
       },
       extraFields,
-      lawsAndCustoms: [
-        {
-          id: `law-1-${nation.nationNum}`,
-          title: `Hiến chương Hành chính ${nation.shortName}`,
-          category: "law",
-          summary: `Quy định phân cấp quản trị theo thể chế ${nation.governmentType.toLowerCase()} và bảo vệ quyền lưu trữ văn thư dân sự tại ${nation.capital}.`,
-          enforcement: `Hội đồng Pháp chế & Tòa án Hành chính ${nation.capital}`,
-        },
-        {
-          id: `law-2-${nation.nationNum}`,
-          title: `Quy ước Bảo tồn Sinh thái ${biomeLabel}`,
-          category: "custom",
-          summary: `Điều chỉnh khai thác bền vững tài nguyên bản địa phù hợp điều kiện khí hậu ${nation.avgTempC}°C và cao độ ${nation.elevationM} m.`,
-          enforcement: `Sở Địa chất & Giám sát Môi trường khu vực ${nation.regionCode}`,
-        },
-      ],
+      roster: buildNationRoster(nation, ruler),
+      lawsAndCustoms: buildNationLaws(nation),
+      resourceItems: buildNationResources(nation, firstExport, firstImport),
+      rumorsAndSecrets: buildNationRumors(nation),
+      customSections: buildNationCustomSections(nation),
+      breakdownBars: buildNationBreakdownBars(nation),
       eraSnapshots: [
         {
           id: `era-1-${nation.nationNum}`,
           eraLabel: nation.foundingEra,
           yearLabel: `Mốc ${nation.validFromTick}`,
           summary: `Giai đoạn lập quốc và định hình ngôn ngữ ${nation.primaryLanguage} tại khu vực ${nation.regionName}.`,
-          keyChanges: `Thiết lập thủ đô ${nation.capital} và khung hành chính ${nation.governmentType.toLowerCase()}.`,
+          keyChanges: `Dân số ước tính ~${popEarly.toLocaleString("vi-VN")} người · Thiết lập thủ đô ${nation.capital}`,
         },
         {
           id: `era-2-${nation.nationNum}`,
-          eraLabel: "Kỷ Nguyên Hiệp Ước & Bách Khoa",
-          yearLabel: "Mốc 500–1000",
-          summary: `Hội nhập sâu vào mạng lưới giao thương ${nation.bloc} và chuẩn hóa bản đồ trắc địa toàn hành tinh.`,
-          keyChanges: `Ký kết các hiệp định biên giới, thông thương và lưu trữ văn thư chuẩn hóa tại Viện Lưu trữ Hành tinh.`,
+          eraLabel: "Kỷ Nguyên Hiệp Ước & Giao thương",
+          yearLabel: "Mốc 400–750",
+          summary: `Mở rộng mạng lưới thương lộ, ký kết các hiệp định biên giới và gia nhập khối ${nation.bloc}.`,
+          keyChanges: `Dân số ước tính ~${popMid.toLocaleString("vi-VN")} người · Chuẩn hóa văn khố & tiền tệ ${currency}`,
+        },
+        {
+          id: `era-3-${nation.nationNum}`,
+          eraLabel: "Hiện Đại Hành Tinh (Aethelgard Prime)",
+          yearLabel: "Mốc 750–1000+",
+          summary: `Hoàn thiện hạ tầng giáo dục, trắc địa và liên kết học thuật xuyên 8 lục địa.`,
+          keyChanges: `Dân số ${nation.population.toLocaleString("vi-VN")} người · Thể chế ${nation.governmentType}`,
         },
       ],
       contentMarkdown,

@@ -1015,18 +1015,32 @@ describe("15. Wiki Intelligence 2.0 (TOC, Footnotes, Completeness, Diff, Auto-Wi
     const contCats = seed.categories.filter((c) => c.id.startsWith("cat-cont-"));
     expect(contCats).toHaveLength(9);
 
-    // Verify Tri-Border #1 Valoria, #2 Zog-Koth, #3 Ignisia dossiers have 100% completeness, no power tab, and cross-link each other
+    // Verify Tri-Border #1 Valoria, #2 Zog-Koth, #3 Ignisia + #201, #203, #360 dossiers have full rich Kingdom modules
     for (const num of [1, 2, 3, 201, 203, 360]) {
       const ent = nationEntries.find((e) => e.id === `ent-nation-${num}`);
       expect(ent).toBeDefined();
+      expect(ent?.entryTypeId).toBe("type-kingdom");
       expect(ent?.tabOverrides?.disabled).toContain("power");
       expect(ent?.customFields.capital).toBeTruthy();
       expect(ent?.extraFields?.length).toBeGreaterThanOrEqual(6);
+      expect(ent?.epigraph?.quote.length).toBeGreaterThan(20);
+      expect(ent?.roster).toHaveLength(3);
+      expect(ent?.lawsAndCustoms).toHaveLength(3);
+      expect(ent?.lawsAndCustoms?.map((l) => l.category)).toEqual(["law", "custom", "taboo"]);
+      expect(ent?.resourceItems).toHaveLength(3);
+      expect(ent?.rumorsAndSecrets).toHaveLength(2);
+      expect(ent?.customSections).toHaveLength(2);
+      expect(ent?.eraSnapshots).toHaveLength(3);
+      const barTotal = (ent?.breakdownBars ?? []).reduce((s, b) => s + b.percentage, 0);
+      expect(barTotal).toBe(100);
       const comp = computeEntryCompleteness(ent!);
       expect(comp.score).toBe(100);
     }
 
+    // Verify gmOnly secret on nation dossier is stripped for Guest role
     const valoria = nationEntries.find((e) => e.id === "ent-nation-1")!;
+    const guestValoria = sanitizeEntryForRole(valoria, "guest");
+    expect(guestValoria?.rumorsAndSecrets?.some((r) => r.gmOnly)).toBe(false);
     expect(valoria.contentMarkdown).toContain("[[Liên minh Hẻm núi Zog-Koth]]");
     expect(valoria.contentMarkdown).toContain("[[Đế chế Hỏa Sơn Ignisia]]");
     expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-1" && r.targetEntryId === "ent-nation-2")).toBe(true);

@@ -12,6 +12,7 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  Globe2,
   History,
   Image as ImageIcon,
   Languages,
@@ -112,6 +113,7 @@ interface EntryDetailViewProps {
   onOpenEntry: (id: string) => void;
   onEditEntry: (entry: Entry) => void;
   onCreateRedLink: (missingTitle: string) => void;
+  onViewOnPlanetaryAtlas?: (nationId: string) => void;
   onMutated: () => Promise<void>;
 }
 
@@ -148,6 +150,7 @@ export function EntryDetailView({
   onOpenEntry,
   onEditEntry,
   onCreateRedLink,
+  onViewOnPlanetaryAtlas,
   onMutated
 }: EntryDetailViewProps) {
   const [loading, setLoading] = useState(true);
@@ -972,6 +975,21 @@ export function EntryDetailView({
         </button>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          {/* 2-Way Jump to Mega-Planet 360 Atlas */}
+          {onViewOnPlanetaryAtlas && entry.id.startsWith("ent-nation-") && (
+            <button
+              type="button"
+              onClick={() =>
+                onViewOnPlanetaryAtlas(`nation-${entry.id.replace("ent-nation-", "")}`)
+              }
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-500/50 bg-cyan-500/15 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25 transition cursor-pointer"
+              title="Mở Bản đồ Đại Hành Tinh và bay tới quốc gia này"
+            >
+              <Globe2 className="w-3.5 h-3.5" />
+              <span>Xem trên Bản đồ 360</span>
+            </button>
+          )}
+
           {/* Audio TTS */}
           <div className="flex items-center rounded-xl border border-[var(--border-subtle)] overflow-hidden">
             <button

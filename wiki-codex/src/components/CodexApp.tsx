@@ -769,6 +769,11 @@ export function CodexApp() {
               onOpenEntry={handleOpenEntry}
               onEditEntry={(ent) => setEditorState({ open: true, entry: ent })}
               onCreateRedLink={handleCreateRedLink}
+              onViewOnPlanetaryAtlas={(nationId) => {
+                setAtlasFocusNationId(nationId);
+                setSection("atlas");
+                setActiveEntryId(null);
+              }}
               onMutated={refreshAll}
             />
           ) : section === "home" && activeWorkspace ? (
