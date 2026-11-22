@@ -19,6 +19,8 @@ import type {
 } from "@/types/codex";
 import { matchesVietnameseQuery } from "@/lib/vietnamese";
 import { computeSchemaCompleteness, entryTypeSupportsPower } from "@/lib/v5-properties";
+import { ENTITY_BLUEPRINT_PRESETS } from "@/lib/entity-blueprints";
+import { computeEntryCompleteness } from "@/lib/wiki-intelligence";
 import { IconSigilPicker } from "./IconSigilPicker";
 import { MarkdownCodexRenderer } from "./MarkdownCodexRenderer";
 import { DynamicPropertiesEditor } from "./DynamicPropertiesPanel";
@@ -242,6 +244,45 @@ export function EntryEditorModal({
     [entryTypes, entryTypeId]
   );
 
+  // #4 Duplicate Title Warning
+  const duplicateEntryMatch = useMemo(() => {
+    const t = title.trim().toLowerCase();
+    if (t.length < 3) return null;
+    return (
+      entriesForAutocomplete.find(
+        (e) => e.id !== entry?.id && e.title.trim().toLowerCase() === t
+      ) ?? null
+    );
+  }, [title, entriesForAutocomplete, entry?.id]);
+
+  // #5 Live Completeness Score while typing
+  const liveCompleteness = useMemo(
+    () =>
+      computeEntryCompleteness({
+        summary,
+        contentMarkdown,
+        customFields,
+        extraFields,
+        sourcesMarkdown,
+        categoryId: categoryId || null,
+        tags: tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+        coverImage
+      }),
+    [summary, contentMarkdown, customFields, extraFields, sourcesMarkdown, categoryId, tagsInput, coverImage]
+  );
+
+  function applyBlueprintPreset(presetId: string) {
+    const bp = ENTITY_BLUEPRINT_PRESETS.find((p) => p.id === presetId);
+    if (!bp) return;
+    const matchedType = entryTypes.find((t) => t.slug === bp.suggestedTypeSlug);
+    if (matchedType) setEntryTypeId(matchedType.id);
+    setSigil(bp.sigil);
+    setIcon(bp.icon);
+    if (!summary.trim()) setSummary(bp.summaryTemplate);
+    setTagsInput(bp.defaultTags.join(", "));
+    setContentMarkdown(bp.contentMarkdown);
+  }
+
   function insertSnippet(snippet: string) {
     setContentMarkdown((prev) => `${prev}\n\n${snippet}`);
   }
@@ -344,9 +385,21 @@ export function EntryEditorModal({
         className="w-full max-w-6xl max-h-[94vh] overflow-y-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-4 sm:p-6 shadow-2xl space-y-5"
       >
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
-          <h2 className="font-display text-lg sm:text-xl font-semibold text-[var(--accent)]">
-            {entry ? `✦ Biên tập: ${entry.title}` : "✦ Tạo Hồ sơ Wiki Codex V5.0"}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-display text-lg sm:text-xl font-semibold text-[var(--accent)]">
+              {entry ? `✦ Biên tập: ${entry.title}` : "✦ Tạo Hồ sơ Thực thể Mới"}
+            </h2>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-mono font-semibold border ${
+                liveCompleteness.score >= 80
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                  : "border-amber-500/50 bg-amber-500/15 text-amber-300"
+              }`}
+              title={liveCompleteness.checks.filter((c) => !c.passed).map((c) => `• ${c.hint}`).join("\n")}
+            >
+              Hoàn thiện {liveCompleteness.score}% · {liveCompleteness.tierLabel}
+            </span>
+          </div>
 
           <div className="flex items-center gap-2">
             {!entry && templates.length > 0 && (
@@ -372,6 +425,35 @@ export function EntryEditorModal({
             </button>
           </div>
         </div>
+
+        {/* #2 Instant 12 Blueprint Presets Strip (when creating new entity) */}
+        {!entry && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5 space-y-1.5">
+            <div className="text-[11px] font-semibold text-cyan-300">
+              ✦ Khuôn mẫu Bách khoa 1-Click (Chọn để nạp sẵn dàn ý & thẻ tag):
+            </div>
+            <div className="codex-ribbon-scroll flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              {ENTITY_BLUEPRINT_PRESETS.map((bp) => (
+                <button
+                  key={bp.id}
+                  type="button"
+                  onClick={() => applyBlueprintPreset(bp.id)}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] hover:border-cyan-400 hover:text-cyan-200 transition cursor-pointer"
+                >
+                  <span>{bp.sigil}</span>
+                  <span>{bp.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* #4 Live Duplicate Title Warning */}
+        {duplicateEntryMatch && (
+          <div className="rounded-xl border border-amber-500/50 bg-amber-500/15 px-3 py-2 text-xs text-amber-200">
+            ⚠ Cảnh báo trùng tên: Đã có hồ sơ mang tiêu đề <b>{duplicateEntryMatch.title}</b> trong Workspace này. Bạn nên đổi tên phân biệt để tránh xung đột <code>[[Wikilink]]</code>.
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
@@ -802,7 +884,150 @@ export function EntryEditorModal({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {activeType.fieldSchema.map((field) => {
-                const val = customFields[field.key];
+                const val = customFields[field.key] ?? field.defaultValue;
+                if (field.type === "boolean") {
+                  const checked = val === true || val === "true";
+                  return (
+                    <label
+                      key={field.key}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs cursor-pointer"
+                    >
+                      <span className="text-[var(--text-secondary)]">
+                        {field.label} {field.required && <span className="text-rose-400">*</span>}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => updateField(field.key, e.target.checked)}
+                        className="h-4 w-4 accent-cyan-500"
+                      />
+                    </label>
+                  );
+                }
+                if (field.type === "color") {
+                  return (
+                    <div key={field.key} className="space-y-1">
+                      <label className="text-xs text-[var(--text-muted)]">
+                        {field.label} {field.required && <span className="text-rose-400">*</span>}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={typeof val === "string" && val.startsWith("#") ? val : "#3b82f6"}
+                          onChange={(e) => updateField(field.key, e.target.value)}
+                          className="h-8 w-12 rounded border border-[var(--border-subtle)] bg-transparent cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={typeof val === "string" ? val : ""}
+                          onChange={(e) => updateField(field.key, e.target.value)}
+                          placeholder="#3b82f6"
+                          className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+                if (field.type === "rating") {
+                  const num = Number(val) || 0;
+                  return (
+                    <div key={field.key} className="space-y-1">
+                      <label className="text-xs text-[var(--text-muted)]">
+                        {field.label} ({num}/5 ★)
+                      </label>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => updateField(field.key, star)}
+                            className={`rounded-lg border px-2.5 py-1 text-sm cursor-pointer ${
+                              star <= num
+                                ? "border-amber-400 bg-amber-400/20 text-amber-300"
+                                : "border-[var(--border-subtle)] text-slate-500"
+                            }`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                if (field.type === "multi_entity_ref") {
+                  const selectedArr = Array.isArray(val) ? (val as string[]) : [];
+                  return (
+                    <div key={field.key} className="sm:col-span-2 space-y-1.5">
+                      <label className="text-xs text-[var(--text-muted)]">
+                        {field.label} ({selectedArr.length} đã chọn)
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedArr.map((t) => (
+                          <span
+                            key={t}
+                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 text-[11px] text-cyan-200"
+                          >
+                            {t}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateField(
+                                  field.key,
+                                  selectedArr.filter((x) => x !== t)
+                                )
+                              }
+                              className="hover:text-rose-300 cursor-pointer"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v && !selectedArr.includes(v)) {
+                            updateField(field.key, [...selectedArr, v]);
+                          }
+                          e.target.value = "";
+                        }}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+                      >
+                        <option value="">+ Thêm thực thể liên kết...</option>
+                        {entriesForAutocomplete.slice(0, 60).map((e) => (
+                          <option key={e.id} value={e.title}>
+                            {e.sigil} {e.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                if (field.type === "url" || field.type === "coordinates" || field.type === "quote") {
+                  return (
+                    <div key={field.key} className="space-y-1">
+                      <label className="text-xs text-[var(--text-muted)]">
+                        {field.label} {field.required && <span className="text-rose-400">*</span>}
+                      </label>
+                      <input
+                        type={field.type === "url" ? "url" : "text"}
+                        required={Boolean(field.required)}
+                        value={typeof val === "string" ? val : ""}
+                        onChange={(e) => updateField(field.key, e.target.value)}
+                        placeholder={
+                          field.placeholder ||
+                          (field.type === "url"
+                            ? "https://..."
+                            : field.type === "coordinates"
+                              ? "VD: 28.1°B, 31.7°Đ"
+                              : "Nhập câu trích dẫn...")
+                        }
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+                      />
+                    </div>
+                  );
+                }
                 if (field.type === "table") {
                   const tbl: TableFieldValue =
                     val && typeof val === "object" && "headers" in val

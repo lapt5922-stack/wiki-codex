@@ -25,6 +25,13 @@ export type CustomFieldType =
   | "select"
   | "multiselect"
   | "entity_ref"
+  | "multi_entity_ref"
+  | "boolean"
+  | "url"
+  | "color"
+  | "rating"
+  | "coordinates"
+  | "quote"
   | "table"
   | "private_note";
 
@@ -105,6 +112,9 @@ export interface CustomFieldDef {
   columns?: string[];
   showInInfobox?: boolean;
   placeholder?: string;
+  required?: boolean;
+  defaultValue?: string;
+  group?: string;
 }
 
 export type EntityCardStyle =
@@ -185,6 +195,7 @@ export interface TableFieldValue {
 export type CustomFieldValue =
   | string
   | number
+  | boolean
   | string[]
   | TableFieldValue
   | null
@@ -317,6 +328,7 @@ export interface Entry {
   resourceItems?: EntryResourceItem[];
   rumorsAndSecrets?: EntryRumorSecret[];
   featured?: boolean;
+  locked?: boolean;
   spoilerGate: boolean;
   spoilerLabel: string;
   tags: string[];
@@ -360,6 +372,7 @@ export interface EntryCardProjection {
   extraFieldCount?: number;
   variantCount?: number;
   featured?: boolean;
+  locked?: boolean;
   spoilerGate: boolean;
   tags: string[];
   updatedAt: string;

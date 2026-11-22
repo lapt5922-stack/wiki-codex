@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Edit3, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Edit3, Plus, Trash2, X } from "lucide-react";
 import type {
   CustomFieldDef,
   CustomFieldType,
@@ -57,6 +57,13 @@ const FIELD_TYPES: Array<{ value: CustomFieldType; label: string }> = [
   { value: "select", label: "Danh sách chọn" },
   { value: "multiselect", label: "Chọn nhiều" },
   { value: "entity_ref", label: "Liên kết thực thể" },
+  { value: "multi_entity_ref", label: "Liên kết đa thực thể" },
+  { value: "boolean", label: "Có / Không (Boolean)" },
+  { value: "url", label: "Liên kết URL tài liệu" },
+  { value: "color", label: "Màu sắc biểu trưng" },
+  { value: "rating", label: "Đánh giá 1–5 sao" },
+  { value: "coordinates", label: "Tọa độ Bản đồ 360" },
+  { value: "quote", label: "Trích dẫn ngắn" },
   { value: "table", label: "Bảng dữ liệu động" },
   { value: "private_note", label: "Ghi chú riêng tư (Ẩn khách)" }
 ];
@@ -102,6 +109,30 @@ export function EntryTypeManagerModal({
     setSupportsVariants(Boolean(t.supportsVariants));
     setEnabledTabs([...t.enabledTabs]);
     setFields(t.fieldSchema.map((f) => ({ ...f })));
+  }
+
+  function cloneType(t: EntryType) {
+    setEditingId(null);
+    setName(`${t.name} (Bản sao)`);
+    setDescription(t.description);
+    setIcon(t.icon);
+    setSigil(t.sigil);
+    setColor(t.color);
+    setCardStyle(t.cardStyle || "lore");
+    setSupportsPower(entryTypeSupportsPower(t));
+    setSupportsVariants(Boolean(t.supportsVariants));
+    setEnabledTabs([...t.enabledTabs]);
+    setFields(t.fieldSchema.map((f) => ({ ...f })));
+  }
+
+  function moveField(idx: number, dir: -1 | 1) {
+    setFields((prev) => {
+      const next = [...prev];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
   }
 
   function resetForm() {
@@ -206,6 +237,7 @@ export function EntryTypeManagerModal({
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => cloneType(t)} title="Nhân bản loại thực thể" className="p-1 rounded hover:bg-white/10 text-cyan-300 cursor-pointer"><Copy className="w-3.5 h-3.5" /></button>
                   <button type="button" onClick={() => loadForEdit(t)} className="p-1 rounded hover:bg-white/10 text-[var(--accent)] cursor-pointer"><Edit3 className="w-3.5 h-3.5" /></button>
                   {entryTypes.length > 1 && (
                     <button type="button" onClick={() => handleDelete(t.id)} className="p-1 rounded hover:bg-white/10 text-rose-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -313,39 +345,56 @@ export function EntryTypeManagerModal({
                   <Plus className="w-3.5 h-3.5" /> Thêm trường động
                 </button>
               </div>
-              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {fields.map((f, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-1.5 items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 p-2">
-                    <input
-                      type="text"
-                      value={f.label}
-                      onChange={(e) =>
-                        setFields((prev) =>
-                          prev.map((x, i) =>
-                            i === idx
-                              ? { ...x, label: e.target.value, key: x.key.startsWith("field_") ? e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_") || x.key : x.key }
-                              : x
+                  <div key={idx} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 p-2 space-y-1.5">
+                    <div className="grid grid-cols-12 gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={f.label}
+                        onChange={(e) =>
+                          setFields((prev) =>
+                            prev.map((x, i) =>
+                              i === idx
+                                ? { ...x, label: e.target.value, key: x.key.startsWith("field_") ? e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_") || x.key : x.key }
+                                : x
+                            )
                           )
-                        )
-                      }
-                      className="col-span-4 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1 text-xs"
-                    />
-                    <select
-                      value={f.type}
-                      onChange={(e) => setFields((prev) => prev.map((x, i) => (i === idx ? { ...x, type: e.target.value as CustomFieldType } : x)))}
-                      className="col-span-4 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-1.5 py-1 text-xs"
-                    >
-                      {FIELD_TYPES.map((ft) => (
-                        <option key={ft.value} value={ft.value}>{ft.label}</option>
-                      ))}
-                    </select>
-                    <label className="col-span-3 flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
-                      <input type="checkbox" checked={Boolean(f.showInInfobox)} onChange={(e) => setFields((prev) => prev.map((x, i) => (i === idx ? { ...x, showInInfobox: e.target.checked } : x)))} />
-                      Infobox
-                    </label>
-                    <button type="button" onClick={() => setFields((prev) => prev.filter((_, i) => i !== idx))} className="col-span-1 text-rose-400 justify-self-center cursor-pointer">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                        }
+                        className="col-span-4 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1 text-xs"
+                      />
+                      <select
+                        value={f.type}
+                        onChange={(e) => setFields((prev) => prev.map((x, i) => (i === idx ? { ...x, type: e.target.value as CustomFieldType } : x)))}
+                        className="col-span-4 rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-1.5 py-1 text-xs"
+                      >
+                        {FIELD_TYPES.map((ft) => (
+                          <option key={ft.value} value={ft.value}>{ft.label}</option>
+                        ))}
+                      </select>
+                      <div className="col-span-4 flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => moveField(idx, -1)} disabled={idx === 0} title="Lên trên" className="p-1 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-white disabled:opacity-30 cursor-pointer"><ArrowUp className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => moveField(idx, 1)} disabled={idx === fields.length - 1} title="Xuống dưới" className="p-1 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-white disabled:opacity-30 cursor-pointer"><ArrowDown className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => setFields((prev) => prev.filter((_, i) => i !== idx))} className="p-1 text-rose-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                      <label className="inline-flex items-center gap-1 cursor-pointer">
+                        <input type="checkbox" checked={Boolean(f.showInInfobox)} onChange={(e) => setFields((prev) => prev.map((x, i) => (i === idx ? { ...x, showInInfobox: e.target.checked } : x)))} />
+                        Infobox
+                      </label>
+                      <label className="inline-flex items-center gap-1 cursor-pointer">
+                        <input type="checkbox" checked={Boolean(f.required)} onChange={(e) => setFields((prev) => prev.map((x, i) => (i === idx ? { ...x, required: e.target.checked } : x)))} />
+                        Bắt buộc
+                      </label>
+                      <input
+                        type="text"
+                        value={f.defaultValue || ""}
+                        onChange={(e) => setFields((prev) => prev.map((x, i) => (i === idx ? { ...x, defaultValue: e.target.value } : x)))}
+                        placeholder="Giá trị mặc định..."
+                        className="flex-1 min-w-[120px] rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px]"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

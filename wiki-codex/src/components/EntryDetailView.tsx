@@ -190,6 +190,30 @@ export function EntryDetailView({
   const [showShareCard, setShowShareCard] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
   const [showCompletenessDetail, setShowCompletenessDetail] = useState(false);
+  // #13 Citation Modal, #14 Reader Personal Notes, #15 Presentation Slide Mode
+  const [showCitationModal, setShowCitationModal] = useState(false);
+  const [slideMode, setSlideMode] = useState(false);
+  const [slideIdx, setSlideIdx] = useState(0);
+  const [readerNote, setReaderNote] = useState("");
+  const [showReaderNote, setShowReaderNote] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(`codex_reader_note_${entryId}`);
+      setReaderNote(saved || "");
+    } catch {
+      setReaderNote("");
+    }
+  }, [entryId]);
+
+  const updateReaderNote = (val: string) => {
+    setReaderNote(val);
+    try {
+      window.localStorage.setItem(`codex_reader_note_${entryId}`, val);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -987,6 +1011,65 @@ export function EntryDetailView({
             >
               <Globe2 className="w-3.5 h-3.5" />
               <span>Xem trên Bản đồ 360</span>
+            </button>
+          )}
+
+          {/* #13 Academic Citation, #14 Personal Note, #15 Slide Presentation */}
+          <button
+            type="button"
+            onClick={() => setShowCitationModal(true)}
+            title="Tạo trích dẫn chuẩn Wiki / APA / Chicago"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+          >
+            <Quote className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span className="hidden xl:inline">Trích dẫn</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowReaderNote((v) => !v)}
+            title="Ghi chú cá nhân riêng cho hồ sơ này"
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer ${
+              readerNote.trim()
+                ? "border-amber-400/60 bg-amber-400/10 text-amber-200"
+                : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)]"
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Ghi chú</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSlideIdx(0);
+              setSlideMode(true);
+            }}
+            title="Trình chiếu hồ sơ dạng Slide toàn màn hình"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-xs text-indigo-200 hover:bg-indigo-500/20 cursor-pointer"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Trình chiếu</span>
+          </button>
+
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() =>
+                patchEntryInline(
+                  { locked: !entry.locked },
+                  entry.locked ? "Mở khóa Chính Sử" : "Bật Khóa Chính Sử (Canon Lock)"
+                )
+              }
+              title={entry.locked ? "Đang khóa Chính Sử — bấm để mở khóa" : "Khóa bảo vệ Chính Sử"}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer ${
+                entry.locked
+                  ? "border-amber-400 bg-amber-500/20 text-amber-200 font-semibold"
+                  : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-amber-400"
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">{entry.locked ? "Đã khóa" : "Khóa"}</span>
             </button>
           )}
 
@@ -2010,6 +2093,135 @@ export function EntryDetailView({
           )}
         </aside>
       </div>
+
+      {/* #14 Reader Personal Notes Drawer */}
+      {showReaderNote && (
+        <div className="rounded-2xl border border-amber-400/40 bg-amber-500/5 p-4 space-y-2 animate-codex-fade-up no-print">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-amber-300">
+              ✦ Ghi chú cá nhân của bạn cho "{entry.title}" (Lưu riêng trên trình duyệt)
+            </span>
+            <button type="button" onClick={() => setShowReaderNote(false)} className="text-slate-400 hover:text-white cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <textarea
+            rows={3}
+            value={readerNote}
+            onChange={(e) => updateReaderNote(e.target.value)}
+            placeholder="Ghi lại ý tưởng phát triển cốt truyện, câu hỏi cần kiểm chứng hoặc trích đoạn yêu thích..."
+            className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] p-2.5 text-xs focus:border-amber-400 focus:outline-none"
+          />
+        </div>
+      )}
+
+      {/* #13 Academic Citation Modal (Wiki / APA / Chicago) */}
+      {showCitationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="animate-codex-scale-in w-full max-w-xl rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-5 space-y-3 text-xs">
+            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
+              <h3 className="font-display text-base font-semibold text-[var(--accent)]">
+                ✦ Trích dẫn Học thuật 1-Click — {entry.title}
+              </h3>
+              <button type="button" onClick={() => setShowCitationModal(false)} className="cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {(
+              [
+                ["Liên kết Wiki Nội bộ", `[[${entry.title}]]`],
+                [
+                  "Chuẩn APA",
+                  `Ban Biên Tập Aethel Codex. (${new Date(entry.updatedAt).getFullYear()}). ${entry.title}. Aethel Codex Encyclopedia.`
+                ],
+                [
+                  "Chuẩn Chicago",
+                  `"${entry.title}." Aethel Codex Encyclopedia. Cập nhật ${new Date(entry.updatedAt).toLocaleDateString("vi-VN")}.`
+                ]
+              ] as const
+            ).map(([label, text]) => (
+              <div key={label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[var(--accent)]">{label}</span>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(text)}
+                    className="rounded-lg bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)] hover:brightness-110 cursor-pointer"
+                  >
+                    Sao chép
+                  </button>
+                </div>
+                <div className="font-mono text-[11px] text-[var(--text-secondary)] break-words">
+                  {text}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* #15 Fullscreen Presentation Slide Mode */}
+      {slideMode && (() => {
+        const sections = (entry.contentMarkdown || "")
+          .split(/\n(?=##\s+)/)
+          .map((chunk) => {
+            const lines = chunk.trim().split("\n");
+            const heading = lines[0]?.startsWith("## ") ? lines[0].slice(3) : "Tổng quan";
+            const body = lines[0]?.startsWith("## ") ? lines.slice(1).join("\n").trim() : chunk.trim();
+            return { heading, body };
+          })
+          .filter((s) => s.body.length > 0);
+        const slides = [
+          {
+            heading: `${entry.sigil} ${entry.title}`,
+            body: `${entry.subtitle ? `${entry.subtitle}\n\n` : ""}${entry.summary}${entry.epigraph?.quote ? `\n\n“${entry.epigraph.quote}” — ${entry.epigraph.author}` : ""}`
+          },
+          ...sections
+        ];
+        const cur = slides[Math.min(slideIdx, slides.length - 1)] || slides[0];
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col bg-[#050b18] text-slate-100 p-6 sm:p-10">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span className="font-mono text-xs text-cyan-300">
+                TRÌNH CHIẾU HỒ SƠ • SLIDE {Math.min(slideIdx + 1, slides.length)} / {slides.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSlideMode(false)}
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-3 py-1.5 text-xs text-white hover:bg-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" /> Thoát Trình chiếu
+              </button>
+            </div>
+            <div className="flex-1 flex flex-col justify-center max-w-4xl mx-auto w-full space-y-6 animate-codex-fade-up">
+              <h2 className="font-display text-3xl sm:text-5xl font-bold text-[var(--accent)]">
+                {cur.heading}
+              </h2>
+              <div className="text-base sm:text-xl leading-relaxed text-slate-200 whitespace-pre-line max-h-[58vh] overflow-y-auto pr-2">
+                {cur.body.replace(/\*\*/g, "").replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, t, a) => a || t)}
+              </div>
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+              <button
+                type="button"
+                disabled={slideIdx <= 0}
+                onClick={() => setSlideIdx((i) => Math.max(0, i - 1))}
+                className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-semibold disabled:opacity-30 hover:bg-slate-800 cursor-pointer"
+              >
+                ← Slide trước
+              </button>
+              <button
+                type="button"
+                disabled={slideIdx >= slides.length - 1}
+                onClick={() => setSlideIdx((i) => Math.min(slides.length - 1, i + 1))}
+                className="rounded-xl bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[#090e1c] disabled:opacity-30 cursor-pointer"
+              >
+                Slide tiếp →
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Revisions & Visual Diff Modal */}
       {showRevisionsModal && (

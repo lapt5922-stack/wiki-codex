@@ -51,6 +51,7 @@ import {
 } from "@/lib/v5-properties";
 import { getPostgresPool, isPostgresConfigured } from "./pool";
 import { createInitialSeedState } from "./seed-data";
+import { renameWikilinkAcrossMarkdown } from "@/lib/wiki-auditor-pro";
 import {
   countWords,
   matchesVietnameseQuery,
@@ -1119,11 +1120,30 @@ export async function updateEntry(
 
   const now = new Date().toISOString();
   const { changeSummary, ...fields } = patch;
+  const prevTitle = entry.title;
+
+  // #18 Canon Lock protection: block content edits when locked unless explicitly unlocking
+  if (entry.locked && fields.locked !== false) {
+    return entry;
+  }
 
   Object.assign(entry, fields, {
     updatedBy: editorName,
     updatedAt: now
   });
+
+  // #19 Global Safe Rename: automatically update [[OldTitle]] across workspace when title changes
+  if (fields.title && fields.title.trim() && fields.title !== prevTitle) {
+    for (const other of state.entries) {
+      if (other.workspaceId === entry.workspaceId && other.id !== entry.id && !other.deletedAt) {
+        other.contentMarkdown = renameWikilinkAcrossMarkdown(
+          other.contentMarkdown,
+          prevTitle,
+          fields.title
+        );
+      }
+    }
+  }
 
   if (fields.coverImage !== undefined && fields.thumbImage === undefined) {
     entry.thumbImage = fields.coverImage;

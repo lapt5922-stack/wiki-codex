@@ -89,6 +89,7 @@ import {
 import { V4WorldStudioView } from "./V4WorldStudioView";
 import { ChronicleReaderView } from "./ChronicleReaderView";
 import { BookPublisherModal } from "./BookPublisherModal";
+import { BatchCsvImportModal } from "./BatchCsvImportModal";
 import {
   AuthModal,
   ImportExportModal,
@@ -201,6 +202,7 @@ export function CodexApp() {
   const [wsModalOpen, setWsModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [bookPublisherOpen, setBookPublisherOpen] = useState(false);
+  const [batchCsvOpen, setBatchCsvOpen] = useState(false);
   const [importExportOpen, setImportExportOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [matrixIds, setMatrixIds] = useState<string[] | null>(null);
@@ -618,6 +620,18 @@ export function CodexApp() {
               >
                 <Layers className="w-3.5 h-3.5 text-[var(--accent)]" />
                 <span className="hidden xl:inline">Loại thực thể</span>
+              </button>
+            )}
+
+            {canEdit && (
+              <button
+                type="button"
+                title="Nhập hàng loạt hồ sơ thực thể từ CSV"
+                onClick={() => setBatchCsvOpen(true)}
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-xs text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Nhập CSV</span>
               </button>
             )}
 
@@ -1211,6 +1225,16 @@ export function CodexApp() {
 
       {publishModalOpen && activeWorkspace && (
         <PublishCenterModal workspace={activeWorkspace} canPublish={canEdit} onClose={() => setPublishModalOpen(false)} />
+      )}
+
+      {batchCsvOpen && (
+        <BatchCsvImportModal
+          workspaceId={activeWorkspaceId}
+          entryTypes={entryTypes}
+          categories={categories}
+          onClose={() => setBatchCsvOpen(false)}
+          onImported={refreshAll}
+        />
       )}
 
       {bookPublisherOpen && activeWorkspace && (
