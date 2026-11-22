@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Cloud, Moon, Pause, Play, RotateCcw, Sun } from "lucide-react";
 import { samplePlanetaryTerrainPixel, fbm2D } from "@/lib/planetary-atlas/terrain-backdrop";
+import { useDeviceUI } from "@/lib/device-ui";
 import type { PlanetaryAtlasBundle, PlanetaryNation, Point2D } from "@/lib/planetary-atlas/types";
 
 interface PlanetaryGlobeViewProps {
@@ -100,6 +101,7 @@ export function PlanetaryGlobeView({
   onSelectNation,
   season = "SPRING",
 }: PlanetaryGlobeViewProps) {
+  const { isMobile } = useDeviceUI();
   const [rotLon, setRotLon] = useState<number>(36);
   const [rotLat, setRotLat] = useState<number>(16);
   const [autoSpin, setAutoSpin] = useState<boolean>(true);
@@ -319,8 +321,12 @@ export function PlanetaryGlobeView({
         dragRef.current.active = false;
       }}
     >
-      {/* Background Starfield & Atmospheric Halo + Interactive SVG Markers */}
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-full w-full">
+      {/* Background Starfield & Atmospheric Halo + Interactive SVG Markers (Adaptive framing per device) */}
+      <svg
+        viewBox={isMobile ? "190 18 520 524" : `0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="block h-full w-full"
+      >
         <defs>
           <radialGradient id="globe-outer-halo" cx="50%" cy="50%" r="55%">
             <stop offset="76%" stopColor="rgba(56,189,248,0)" />

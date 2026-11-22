@@ -338,7 +338,17 @@ export function PlanetaryAtlasStudio({
   const [terrainHdReady, setTerrainHdReady] = useState<boolean>(false);
 
   const [season, setSeason] = useState<SeasonId>("SPRING");
-  const { isMobile } = useDeviceUI();
+  const { isMobile, isTablet } = useDeviceUI();
+  const [mobileToolsOpen, setMobileToolsOpen] = useState<boolean>(false);
+  const [fitMode, setFitMode] = useState<"auto" | "meet" | "slice">("auto");
+  const effectiveAspect =
+    fitMode === "meet"
+      ? "xMidYMid meet"
+      : fitMode === "slice"
+      ? "xMidYMid slice"
+      : isMobile
+      ? "xMidYMid meet"
+      : "xMidYMid slice";
   const [showMiniMap, setShowMiniMap] = useState<boolean>(true);
   const [showLegend, setShowLegend] = useState<boolean>(true);
   const [showDistanceRings, setShowDistanceRings] = useState<boolean>(false);
@@ -1093,17 +1103,17 @@ export function PlanetaryAtlasStudio({
           : "flex flex-col rounded-xl border border-slate-800 bg-slate-950 text-slate-100 overflow-hidden shadow-2xl"
       }
     >
-      {/* Top Encyclopedic Atlas Control Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/95 px-3 py-2">
-        <div className="flex items-center gap-2">
-          <Globe2 className="h-5 w-5 text-cyan-400" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-slate-100">
-                Bản đồ Đại Hành Tinh {bundle.planetName}
+      {/* Top Encyclopedic Atlas Control Bar (Ultra-compact on Mobile so map fills frame!) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/95 px-2.5 sm:px-3 py-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Globe2 className="h-5 w-5 text-cyan-400 shrink-0" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-xs sm:text-sm text-slate-100 truncate">
+                {isMobile ? `Atlas ${bundle.planetName}` : `Bản đồ Đại Hành Tinh ${bundle.planetName}`}
               </span>
-              <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[11px] font-medium text-cyan-300 border border-cyan-500/30">
-                {eraNations.length} / {bundle.nations.length} Quốc gia
+              <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] sm:text-[11px] font-medium text-cyan-300 border border-cyan-500/30 shrink-0">
+                {eraNations.length} QG
               </span>
               <span className="hidden md:inline text-[11px] text-slate-400">
                 Chu vi {bundle.circumferenceKm.toLocaleString("vi-VN")} km • 8 Lục địa
@@ -1112,8 +1122,58 @@ export function PlanetaryAtlasStudio({
           </div>
         </div>
 
-        {/* Display Mode Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Mobile Quick Controls (keeps top bar 1 clean row) */}
+        {isMobile && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setGlobe3DMode((v) => !v)}
+              className={`rounded-lg border px-2 py-1 text-[11px] font-medium ${
+                globe3DMode
+                  ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                  : "border-slate-700 bg-slate-900 text-slate-200"
+              }`}
+            >
+              {globe3DMode ? "2D" : "3D Cầu"}
+            </button>
+            {!globe3DMode && (
+              <button
+                type="button"
+                onClick={() =>
+                  setFitMode((m) =>
+                    (m === "auto" ? (isMobile ? "slice" : "meet") : m === "meet" ? "slice" : "meet")
+                  )
+                }
+                className="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-2 py-1 text-[11px] font-medium text-cyan-200"
+                title="Đổi tỷ lệ khung hình bản đồ"
+              >
+                {effectiveAspect === "xMidYMid meet" ? "Vừa khung" : "Tràn khung"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setMobileToolsOpen((v) => !v)}
+              className={`rounded-lg border px-2 py-1 text-[11px] font-medium ${
+                mobileToolsOpen
+                  ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
+                  : "border-slate-700 bg-slate-900 text-slate-200"
+              }`}
+            >
+              {mobileToolsOpen ? "Ẩn thanh" : "Công cụ"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen((v) => !v)}
+              className="rounded-lg border border-slate-700 bg-slate-900 p-1.5 text-slate-200"
+              aria-label="Toàn màn hình"
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        )}
+
+        {/* Display Mode Switcher (Full on Tablet/Desktop, collapsible on Mobile) */}
+        <div className={`${isMobile && !mobileToolsOpen ? "hidden" : "flex"} flex-wrap items-center gap-1.5 w-full lg:w-auto`}>
           <div className="flex rounded-lg border border-slate-700 bg-slate-950 p-0.5">
             {MODE_OPTIONS.map((m) => (
               <button
@@ -1293,8 +1353,8 @@ export function PlanetaryAtlasStudio({
         </div>
       </div>
 
-      {/* Second Bar: 7 Pure-Wiki Lenses + 6 Layers */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-900/70 px-3 py-1.5 text-xs">
+      {/* Second Bar: 10 Pure-Wiki Lenses + Layers (Hidden on Mobile unless Công cụ opened) */}
+      <div className={`${isMobile && !mobileToolsOpen ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-900/70 px-3 py-1.5 text-xs`}>
         <div className="flex flex-wrap items-center gap-1">
           <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             Thấu kính Wiki:
@@ -1481,8 +1541,24 @@ export function PlanetaryAtlasStudio({
         </div>
       </div>
 
-      {/* Main Workspace: Full-Bleed Mega-Planet SVG Viewport + Floating Overlay Drawers */}
-      <div className={`relative flex flex-1 min-h-0 ${isFullscreen ? "h-[calc(100vh-140px)]" : "h-[68vh] min-h-[540px]"}`}>
+      {/* Main Workspace: Device-Adaptive Aspect Frame + Full-Bleed Mega-Planet Viewport */}
+      <div
+        className={`relative flex flex-1 min-h-0 w-full ${
+          isFullscreen
+            ? isMobile
+              ? "h-[calc(100dvh-54px)]"
+              : "h-[calc(100vh-140px)]"
+            : isMobile
+            ? globe3DMode
+              ? "h-[64dvh] min-h-[380px]"
+              : effectiveAspect === "xMidYMid meet"
+              ? "aspect-[16/11] min-h-[300px] max-h-[66dvh]"
+              : "h-[64dvh] min-h-[400px]"
+            : isTablet
+            ? "h-[66dvh] min-h-[480px]"
+            : "h-[72vh] min-h-[580px]"
+        }`}
+      >
         {/* Left Filter & Search Drawer (floating overlay so map stays panoramic) */}
         {showFilterDrawer && (
           <aside className="absolute left-0 top-0 bottom-0 z-20 flex w-72 flex-col border-r border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur">
@@ -1617,7 +1693,7 @@ export function PlanetaryAtlasStudio({
           <svg
             ref={svgRef}
             viewBox={`0 0 ${W} ${H}`}
-            preserveAspectRatio="xMidYMid slice"
+            preserveAspectRatio={effectiveAspect}
             onClick={handleCanvasClick}
             className="block h-full w-full"
           >
