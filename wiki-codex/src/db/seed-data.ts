@@ -5,6 +5,11 @@ import {
   createCharacterAttributePreset,
   createKingdomAttributePreset
 } from "@/lib/v3-engines";
+import {
+  buildAll360NationEntries,
+  buildPlanetaryContinentCategories,
+  buildTriBorderAndMajorRelations
+} from "@/lib/planetary-atlas/nation-dossiers";
 
 const NOW = "2026-11-22T07:00:00.000Z";
 
@@ -109,7 +114,9 @@ export function createInitialSeedState(): CodexDatabaseState {
 
       // Workspace 2 Categories
       { id: "cat-tech-arch", workspaceId: "ws-tech-archive", parentId: null, name: "Kiến trúc Hệ thống", slug: "kien-truc-he-thong", description: "Nguyên lý thiết kế phần mềm quy mô lớn và cơ sở dữ liệu.", icon: "Cpu", sigil: "⬡", color: "#60A5FA", sortOrder: 1, deletedAt: null, createdAt: NOW, updatedAt: NOW },
-      { id: "cat-tech-db", workspaceId: "ws-tech-archive", parentId: "cat-tech-arch", name: "Cơ sở dữ liệu & Tìm kiếm", slug: "co-so-du-lieu-tim-kiem", description: "Chỉ mục GIN, phân trang Keyset và tối ưu hóa truy vấn.", icon: "Database", sigil: "⌬", color: "#34D399", sortOrder: 1, deletedAt: null, createdAt: NOW, updatedAt: NOW }
+      { id: "cat-tech-db", workspaceId: "ws-tech-archive", parentId: "cat-tech-arch", name: "Cơ sở dữ liệu & Tìm kiếm", slug: "co-so-du-lieu-tim-kiem", description: "Chỉ mục GIN, phân trang Keyset và tối ưu hóa truy vấn.", icon: "Database", sigil: "⌬", color: "#34D399", sortOrder: 1, deletedAt: null, createdAt: NOW, updatedAt: NOW },
+      // 9 Planetary Continent Subcategories (360 Nations)
+      ...buildPlanetaryContinentCategories("ws-aethelgard", NOW)
     ],
     // 14 Entity-Aware Encyclopedic Types (V5.0 — Distinct fields, tabs & card designs per type)
     entryTypes: [
@@ -1532,7 +1539,9 @@ Tri thức và hòa bình là di sản vĩnh cửu của thế giới.
         createdAt: NOW,
         updatedAt: NOW,
         deletedAt: null
-      }
+      },
+      // 360 Complete Encyclopedic Nation Dossiers (Aethelgard Prime)
+      ...buildAll360NationEntries("ws-aethelgard", NOW)
     ],
     revisions: [
       {
@@ -1566,7 +1575,8 @@ Tri thức và hòa bình là di sản vĩnh cửu của thế giới.
       { id: "rel-5", workspaceId: "ws-aethelgard", sourceEntryId: "ent-hiep-uoc", targetEntryId: "ent-orakel", relationType: "Bảo hộ trung lập", note: "Công nhận quyền tự do nghiên cứu vĩnh viễn", createdAt: NOW },
       { id: "rel-6", workspaceId: "ws-aethelgard", sourceEntryId: "ent-lyraen", targetEntryId: "ent-sylvaris", relationType: "Khảo sát thực địa", note: "Giải mã các bia đá cổ ngữ trong Rừng Ngọc", createdAt: NOW },
       { id: "rel-7", workspaceId: "ws-aethelgard", sourceEntryId: "ent-gia-toc-vaelor", targetEntryId: "ent-lyraen", relationType: "Thành viên kiệt xuất", note: "Đời thứ V của Gia tộc Vaelor", createdAt: NOW },
-      { id: "rel-8", workspaceId: "ws-aethelgard", sourceEntryId: "ent-hoi-dong-thien-van", targetEntryId: "ent-thien-cau-pha-le", relationType: "Đơn vị bảo quản", note: "Trưng bày tại tầng 9 Tháp Tinh Tú", createdAt: NOW }
+      { id: "rel-8", workspaceId: "ws-aethelgard", sourceEntryId: "ent-hoi-dong-thien-van", targetEntryId: "ent-thien-cau-pha-le", relationType: "Đơn vị bảo quản", note: "Trưng bày tại tầng 9 Tháp Tinh Tú", createdAt: NOW },
+      ...buildTriBorderAndMajorRelations("ws-aethelgard", NOW)
     ],
     timelineEvents: [
       { id: "tl-1", workspaceId: "ws-aethelgard", title: "Liên minh Bảy Thành bang Solaria", dateLabel: "Ngày 12 Tháng Minh Dương, Năm 45", sortYear: 45, calendarMonthIndex: 5, calendarDay: 12, era: "Kỷ Nguyên Khởi Nguyên", icon: "Sun", sigil: "✹", color: "#F59E0B", summary: "Bảy thành bang phương Nam hợp nhất thành Đế chế Hoàng Kim Solaria và ban hành lịch pháp mặt trời.", entryIds: ["ent-solaria"], createdAt: NOW },

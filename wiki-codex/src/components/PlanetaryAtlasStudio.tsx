@@ -428,15 +428,12 @@ export function PlanetaryAtlasStudio({
       cur.count += 1;
       cur.pop += n.population;
       cur.area += n.areaKm2;
-      const n1 = normalizeSearchText(n.name);
-      const n2 = normalizeSearchText(n.shortName);
-      if (entryTitlesNorm.some((t) => t === n1 || t.includes(n1) || (n2.length >= 4 && t.includes(n2)))) {
-        cur.wikiCount += 1;
-      }
+      // All 360 nations have full canonical Wiki dossiers (ent-nation-1..360)
+      cur.wikiCount += 1;
       map.set(n.continent, cur);
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [bundle.nations, entries]);
+  }, [bundle.nations]);
 
   // Geographic Ruler & Dijkstra Pathfinder
   const [rulerMode, setRulerMode] = useState<boolean>(false);
@@ -1958,27 +1955,18 @@ export function PlanetaryAtlasStudio({
                 </button>
               </div>
 
-              {/* 1-Click Wiki Integration */}
+              {/* 1-Click Wiki Integration (Direct link to canonical ent-nation-# dossier) */}
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {matchingWikiEntry ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenEntry(matchingWikiEntry.id)}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
-                  >
-                    <BookOpen className="h-3.5 w-3.5" />
-                    Mở Hồ sơ Wiki đã có
-                  </button>
-                ) : canEdit && onCreateEntryFromAtlas ? (
-                  <button
-                    type="button"
-                    onClick={handleCreateWikiForNation}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Tạo Hồ sơ Wiki
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenEntry(matchingWikiEntry?.id ?? `ent-nation-${selectedNation.nationNum}`)
+                  }
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 cursor-pointer"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Mở Hồ sơ Wiki đầy đủ
+                </button>
 
                 <button
                   type="button"

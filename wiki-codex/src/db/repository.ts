@@ -276,6 +276,28 @@ function hydrateV2State(raw: Partial<CodexDatabaseState>): CodexDatabaseState {
     }
   }
 
+  // Planetary 360-Nation Auto-Migration: ensure all 9 continent categories, 360 nation dossiers, and alliance relations exist
+  if (!state.entries.some((e) => e.id === "ent-nation-1")) {
+    const existingCatIds = new Set(state.categories.map((c) => c.id));
+    for (const c of seed.categories) {
+      if (c.id.startsWith("cat-cont-") && !existingCatIds.has(c.id)) {
+        state.categories.push(c);
+      }
+    }
+    const existingEntryIds = new Set(state.entries.map((e) => e.id));
+    for (const e of seed.entries) {
+      if (e.id.startsWith("ent-nation-") && !existingEntryIds.has(e.id)) {
+        state.entries.push(e);
+      }
+    }
+    const existingRelIds = new Set(state.relations.map((r) => r.id));
+    for (const r of seed.relations) {
+      if (r.id.startsWith("rel-planet-") && !existingRelIds.has(r.id)) {
+        state.relations.push(r);
+      }
+    }
+  }
+
   return state;
 }
 

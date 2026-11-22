@@ -1006,5 +1006,32 @@ describe("15. Wiki Intelligence 2.0 (TOC, Footnotes, Completeness, Diff, Auto-Wi
       }
     }
   });
+
+  it("khởi tạo đầy đủ 360 hồ sơ Wiki chi tiết (ent-nation-1..360), 9 danh mục lục địa và quan hệ Liên minh Tam Biên đúng logic", () => {
+    const seed = createInitialSeedState();
+    const nationEntries = seed.entries.filter((e) => e.id.startsWith("ent-nation-"));
+    expect(nationEntries).toHaveLength(360);
+
+    const contCats = seed.categories.filter((c) => c.id.startsWith("cat-cont-"));
+    expect(contCats).toHaveLength(9);
+
+    // Verify Tri-Border #1 Valoria, #2 Zog-Koth, #3 Ignisia dossiers have 100% completeness, no power tab, and cross-link each other
+    for (const num of [1, 2, 3, 201, 203, 360]) {
+      const ent = nationEntries.find((e) => e.id === `ent-nation-${num}`);
+      expect(ent).toBeDefined();
+      expect(ent?.tabOverrides?.disabled).toContain("power");
+      expect(ent?.customFields.capital).toBeTruthy();
+      expect(ent?.extraFields?.length).toBeGreaterThanOrEqual(6);
+      const comp = computeEntryCompleteness(ent!);
+      expect(comp.score).toBe(100);
+    }
+
+    const valoria = nationEntries.find((e) => e.id === "ent-nation-1")!;
+    expect(valoria.contentMarkdown).toContain("[[Liên minh Hẻm núi Zog-Koth]]");
+    expect(valoria.contentMarkdown).toContain("[[Đế chế Hỏa Sơn Ignisia]]");
+    expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-1" && r.targetEntryId === "ent-nation-2")).toBe(true);
+    expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-1" && r.targetEntryId === "ent-nation-3")).toBe(true);
+    expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-2" && r.targetEntryId === "ent-nation-3")).toBe(true);
+  });
 });
 
