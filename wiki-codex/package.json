@@ -1,0 +1,35 @@
+{
+  "name": "wiki-codex",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Universal Wiki & Knowledge Codex (Huyền ảo Fantasy, Thuần Tri Thức, Quy mô lớn & 1-Click Publish)",
+  "scripts": {
+    "dev": "next dev",
+    "dev:public": "next dev -H 0.0.0.0 -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "start:public": "next start -H 0.0.0.0 -p 3000",
+    "start:render": "node -e \"const { spawn } = require('child_process'); const port = process.env.PORT || '10000'; const child = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', 'start', '-H', '0.0.0.0', '-p', port], { stdio: 'inherit' }); child.on('exit', (code) => process.exit(code ?? 0));\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.511.0",
+    "next": "^15.3.3",
+    "pg": "^8.16.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.8",
+    "@types/node": "^22.15.29",
+    "@types/pg": "^8.15.4",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.6",
+    "tailwindcss": "^4.1.8",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

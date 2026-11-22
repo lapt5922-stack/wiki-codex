@@ -1,0 +1,919 @@
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { Columns2, Image as ImageIcon, Plus, Sparkles, Trash2, X } from "lucide-react";
+import type {
+  CanonStatus,
+  Category,
+  CodexTemplate,
+  CustomFieldValue,
+  Entry,
+  EntryCardProjection,
+  EntryCustomProperty,
+  EntryStatus,
+  EntryType,
+  EntryVisibility,
+  GalleryItem,
+  MediaAsset,
+  TableFieldValue
+} from "@/types/codex";
+import { matchesVietnameseQuery } from "@/lib/vietnamese";
+import { computeSchemaCompleteness, entryTypeSupportsPower } from "@/lib/v5-properties";
+import { IconSigilPicker } from "./IconSigilPicker";
+import { MarkdownCodexRenderer } from "./MarkdownCodexRenderer";
+import { DynamicPropertiesEditor } from "./DynamicPropertiesPanel";
+
+interface EntryEditorModalProps {
+  workspaceId: string;
+  entry: Entry | null;
+  initialTitle?: string;
+  initialContent?: string;
+  entryTypes: EntryType[];
+  categories: Category[];
+  entriesForAutocomplete?: EntryCardProjection[];
+  templates?: CodexTemplate[];
+  mediaAssets?: MediaAsset[];
+  onClose: () => void;
+  onSaved: (entry: Entry) => Promise<void>;
+}
+
+export function EntryEditorModal({
+  workspaceId,
+  entry,
+  initialTitle = "",
+  initialContent = "",
+  entryTypes,
+  categories,
+  entriesForAutocomplete = [],
+  templates = [],
+  mediaAssets = [],
+  onClose,
+  onSaved
+}: EntryEditorModalProps) {
+  const [title, setTitle] = useState(entry?.title || initialTitle);
+  const [subtitle, setSubtitle] = useState(entry?.subtitle || "");
+  const [summary, setSummary] = useState(entry?.summary || "");
+  const [entryTypeId, setEntryTypeId] = useState(
+    entry?.entryTypeId || entryTypes[0]?.id || ""
+  );
+  const [categoryId, setCategoryId] = useState(entry?.categoryId || "");
+  const [status, setStatus] = useState<EntryStatus>(entry?.status || "published");
+  const [visibility, setVisibility] = useState<EntryVisibility>(
+    entry?.visibility || "public"
+  );
+  const [canonStatus, setCanonStatus] = useState<CanonStatus>(
+    entry?.canonStatus || "canon"
+  );
+  const [featured, setFeatured] = useState(Boolean(entry?.featured));
+  const [aliasesInput, setAliasesInput] = useState((entry?.aliases || []).join(", "));
+  const [epigraphQuote, setEpigraphQuote] = useState(entry?.epigraph?.quote || "");
+  const [epigraphAuthor, setEpigraphAuthor] = useState(entry?.epigraph?.author || "");
+  const [epigraphSource, setEpigraphSource] = useState(entry?.epigraph?.source || "");
+
+  const [spoilerGate, setSpoilerGate] = useState(entry?.spoilerGate || false);
+  const [spoilerLabel, setSpoilerLabel] = useState(entry?.spoilerLabel || "");
+  const [icon, setIcon] = useState(entry?.icon || "ScrollText");
+  const [sigil, setSigil] = useState(entry?.sigil || "✦");
+  const [accentColor, setAccentColor] = useState("#D4AF37");
+  const [coverImage, setCoverImage] = useState(entry?.coverImage || "");
+  const [thumbImage, setThumbImage] = useState(entry?.thumbImage || "");
+  const [tagsInput, setTagsInput] = useState((entry?.tags || []).join(", "));
+  const [contentMarkdown, setContentMarkdown] = useState(
+    entry?.contentMarkdown ||
+      initialContent ||
+      "## Tổng quan\n\nViết nội dung bách khoa tại đây..."
+  );
+  const [customFields, setCustomFields] = useState<
+    Record<string, CustomFieldValue>
+  >(entry?.customFields || {});
+  const [extraFields, setExtraFields] = useState<EntryCustomProperty[]>(
+    entry?.extraFields || []
+  );
+  const [powerOverride, setPowerOverride] = useState<"default" | "on" | "off">(
+    entry?.tabOverrides?.enabled?.includes("power")
+      ? "on"
+      : entry?.tabOverrides?.disabled?.includes("power")
+      ? "off"
+      : "default"
+  );
+  const [sourcesMarkdown, setSourcesMarkdown] = useState(
+    entry?.sourcesMarkdown || ""
+  );
+  const [privateNotes, setPrivateNotes] = useState(entry?.privateNotes || "");
+  const [gallery, setGallery] = useState<GalleryItem[]>(entry?.gallery || []);
+  const [changeSummary, setChangeSummary] = useState("");
+  const [splitPreview, setSplitPreview] = useState(true);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Inline [[Wikilink]] Autocomplete detection
+  const wikiTriggerMatch = useMemo(() => {
+    const m = /\[\[([^\]|]*)$/.exec(contentMarkdown);
+    return m ? m[1] : null;
+  }, [contentMarkdown]);
+
+  const autocompleteMatches = useMemo(() => {
+    if (wikiTriggerMatch === null) return [];
+    return entriesForAutocomplete
+      .filter((e) => !wikiTriggerMatch || matchesVietnameseQuery(e.title, wikiTriggerMatch))
+      .slice(0, 6);
+  }, [wikiTriggerMatch, entriesForAutocomplete]);
+
+  function applyAutocomplete(targetTitle: string) {
+    setContentMarkdown((prev) =>
+      prev.replace(/\[\[([^\]|]*)$/, `[[${targetTitle}]]`)
+    );
+  }
+
+  function applyTemplate(tplId: string) {
+    const tpl = templates.find((t) => t.id === tplId);
+    if (!tpl) return;
+    setEntryTypeId(tpl.entryTypeId);
+    setSigil(tpl.sigil || "✦");
+    setTagsInput(tpl.defaultTags.join(", "));
+    setContentMarkdown(tpl.contentMarkdown);
+  }
+
+  const activeType = useMemo(
+    () => entryTypes.find((t) => t.id === entryTypeId),
+    [entryTypes, entryTypeId]
+  );
+
+  function insertSnippet(snippet: string) {
+    setContentMarkdown((prev) => `${prev}\n\n${snippet}`);
+  }
+
+  function updateField(key: string, value: CustomFieldValue) {
+    setCustomFields((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function addGalleryItem() {
+    setGallery((prev) => [
+      ...prev,
+      { id: `gal-${Date.now()}`, thumbUrl: "", fullUrl: "", caption: "", alt: "" }
+    ]);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) {
+      setError("Vui lòng nhập tiêu đề hồ sơ.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        workspaceId,
+        entryTypeId,
+        categoryId: categoryId || null,
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        summary: summary.trim(),
+        status,
+        visibility,
+        canonStatus,
+        featured,
+        aliases: aliasesInput
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        epigraph: epigraphQuote.trim()
+          ? {
+              quote: epigraphQuote.trim(),
+              author: epigraphAuthor.trim() || title.trim(),
+              source: epigraphSource.trim() || undefined
+            }
+          : undefined,
+        spoilerGate,
+        spoilerLabel,
+        icon,
+        sigil,
+        coverImage: coverImage.trim(),
+        thumbImage: (thumbImage || coverImage).trim(),
+        tags: tagsInput
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        contentMarkdown,
+        customFields,
+        extraFields,
+        tabOverrides:
+          powerOverride === "on"
+            ? { enabled: ["power"] }
+            : powerOverride === "off"
+            ? { disabled: ["power"] }
+            : undefined,
+        sourcesMarkdown,
+        privateNotes,
+        gallery: gallery.filter((g) => g.fullUrl || g.thumbUrl),
+        changeSummary: changeSummary.trim() || undefined
+      };
+
+      const res = await fetch(
+        entry ? `/api/entries/${entry.id}` : "/api/entries",
+        {
+          method: entry ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Không thể lưu hồ sơ.");
+      } else {
+        await onSaved(data.entry);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-2 sm:p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-6xl max-h-[94vh] overflow-y-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-4 sm:p-6 shadow-2xl space-y-5"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
+          <h2 className="font-display text-lg sm:text-xl font-semibold text-[var(--accent)]">
+            {entry ? `✦ Biên tập: ${entry.title}` : "✦ Tạo Hồ sơ Wiki Codex V5.0"}
+          </h2>
+
+          <div className="flex items-center gap-2">
+            {!entry && templates.length > 0 && (
+              <select
+                defaultValue=""
+                onChange={(e) => applyTemplate(e.target.value)}
+                className="rounded-lg border border-[var(--border-strong)] bg-[var(--accent-soft)] text-[var(--accent)] px-2.5 py-1.5 text-xs"
+              >
+                <option value="">Áp dụng Mẫu hồ sơ (Template)...</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id} className="bg-[#090e1c] text-white">
+                    {t.sigil} {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            {error}
+          </div>
+        )}
+
+        {/* V5.0 Schema Completeness Meter */}
+        {(() => {
+          const comp = computeSchemaCompleteness(
+            { summary, contentMarkdown, coverImage, customFields, extraFields },
+            activeType
+          );
+          const typeHasPower = entryTypeSupportsPower(activeType);
+          return (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3 flex-1 min-w-[220px]">
+                <span className="font-mono text-[11px] text-[var(--accent)] font-bold shrink-0">
+                  Hoàn thiện: {comp.percent}%
+                </span>
+                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden max-w-xs">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${comp.percent}%`,
+                      backgroundColor: comp.percent >= 80 ? "#34D399" : comp.percent >= 50 ? "#F59E0B" : "#FB7185"
+                    }}
+                  />
+                </div>
+                {comp.missingLabels.length > 0 && (
+                  <span className="text-[11px] text-[var(--text-muted)] truncate hidden md:inline">
+                    Gợi ý điền thêm: {comp.missingLabels.slice(0, 3).join(", ")}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span className="text-[var(--text-muted)]">Mục Chỉ số & Power:</span>
+                <select
+                  value={powerOverride}
+                  onChange={(e) => setPowerOverride(e.target.value as "default" | "on" | "off")}
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-1 text-[11px]"
+                >
+                  <option value="default">
+                    Mặc định theo loại ({typeHasPower ? "Bật" : "Tắt — Thuần tri thức"})
+                  </option>
+                  <option value="on">Luôn Bật cho hồ sơ này</option>
+                  <option value="off">Luôn Tắt cho hồ sơ này</option>
+                </select>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Core Metadata */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">
+              Tiêu đề Hồ sơ *
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ví dụ: Vương quốc Băng Triều"
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">
+              Phụ đề / Danh xưng cổ
+            </label>
+            <input
+              type="text"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">
+              Biệt danh / Tên gọi khác (Aliases — cách nhau dấu phẩy)
+            </label>
+            <input
+              type="text"
+              value={aliasesInput}
+              onChange={(e) => setAliasesInput(e.target.value)}
+              placeholder="Valdoria Glacien, Bắc Hải Quốc..."
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Loại thực thể</label>
+            <select
+              value={entryTypeId}
+              onChange={(e) => setEntryTypeId(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+            >
+              {entryTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.sigil} {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Danh mục</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+            >
+              <option value="">— Chưa phân loại —</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.sigil} {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Trạng thái</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as EntryStatus)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+            >
+              <option value="published">Đã xuất bản</option>
+              <option value="review">Đang rà soát</option>
+              <option value="draft">Bản nháp</option>
+              <option value="archived">Lưu trữ</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Phạm vi</label>
+            <select
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as EntryVisibility)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+            >
+              <option value="public">Công khai</option>
+              <option value="private">Riêng tư</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Xác thực Sử liệu</label>
+            <select
+              value={canonStatus}
+              onChange={(e) => setCanonStatus(e.target.value as CanonStatus)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+            >
+              <option value="canon">Chính sử (Canon)</option>
+              <option value="apocrypha">Truyền thuyết</option>
+              <option value="hypothesis">Giả thuyết học giả</option>
+              <option value="unverified">Đang kiểm chứng</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Epigraph Quote */}
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/40 p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="sm:col-span-3 text-xs font-semibold text-[var(--accent)]">
+            ✦ Khung Đề từ / Danh ngôn đầu hồ sơ (Epigraph — Tùy chọn)
+          </div>
+          <input
+            type="text"
+            value={epigraphQuote}
+            onChange={(e) => setEpigraphQuote(e.target.value)}
+            placeholder="Câu trích dẫn biểu tượng..."
+            className="sm:col-span-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+          />
+          <input
+            type="text"
+            value={epigraphAuthor}
+            onChange={(e) => setEpigraphAuthor(e.target.value)}
+            placeholder="Tác giả / Nguồn trích"
+            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-[var(--text-muted)] mb-1">Tóm tắt ngắn</label>
+          <textarea
+            rows={2}
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-sm"
+          />
+        </div>
+
+        <IconSigilPicker
+          icon={icon}
+          sigil={sigil}
+          color={accentColor}
+          onChange={(n) => {
+            setIcon(n.icon);
+            setSigil(n.sigil);
+            setAccentColor(n.color);
+          }}
+        />
+
+        {/* Images & Media Vault Picker */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-[var(--text-muted)]">URL Ảnh bìa (Hero)</label>
+              {mediaAssets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowMediaPicker((v) => !v)}
+                  className="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <ImageIcon className="w-3 h-3" /> Chọn từ Media Vault
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={coverImage}
+              onChange={(e) => setCoverImage(e.target.value)}
+              placeholder="https://... hoặc /uploads/..."
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">URL Ảnh thu nhỏ (Thumb)</label>
+            <input
+              type="text"
+              value={thumbImage}
+              onChange={(e) => setThumbImage(e.target.value)}
+              placeholder="Để trống sẽ dùng ảnh bìa"
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Thẻ phân loại (Tags)</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="vương quốc, phương bắc, lịch sử"
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+            />
+          </div>
+        </div>
+
+        {showMediaPicker && (
+          <div className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)] p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto">
+            {mediaAssets.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  setCoverImage(m.fullUrl);
+                  setThumbImage(m.thumbUrl);
+                  setShowMediaPicker(false);
+                }}
+                className="rounded-lg overflow-hidden border border-[var(--border-subtle)] hover:border-[var(--accent)] text-left cursor-pointer"
+              >
+                <img src={m.thumbUrl} alt={m.title} className="w-full h-16 object-cover" />
+                <div className="p-1 text-[10px] truncate">{m.title}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Split-Pane Live Markdown Editor with [[Autocomplete]] */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-medium text-[var(--accent)]">
+              Soạn thảo Cổ thư (Gõ `[[` để tự động gợi ý liên kết hồ sơ)
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => insertSnippet("[[Tên hồ sơ]]")}
+                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:border-[var(--accent)] cursor-pointer"
+              >
+                + [[Link]]
+              </button>
+              <button
+                type="button"
+                onClick={() => insertSnippet(":::callout Ghi chú Học thuật\nNội dung chú thích...\n:::")}
+                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:border-[var(--accent)] cursor-pointer"
+              >
+                + Callout
+              </button>
+              <button
+                type="button"
+                onClick={() => insertSnippet(":::conlang\nLời thề dưới ánh tinh tú.\n:::")}
+                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:border-[var(--accent)] cursor-pointer"
+              >
+                + Văn bia Cổ ngữ
+              </button>
+              <button
+                type="button"
+                onClick={() => insertSnippet(":::spoiler Ghi chú tiết lộ\nNội dung ẩn...\n:::")}
+                className="px-2 py-1 rounded border border-[var(--border-subtle)] hover:border-[var(--accent)] cursor-pointer"
+              >
+                + Spoiler
+              </button>
+              <button
+                type="button"
+                onClick={() => setSplitPreview((v) => !v)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded border cursor-pointer ${
+                  splitPreview
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border-subtle)]"
+                }`}
+              >
+                <Columns2 className="w-3 h-3" />
+                {splitPreview ? "Đang chia đôi Xem trước" : "Bật Xem trước"}
+              </button>
+            </div>
+          </div>
+
+          {/* Autocomplete dropdown when typing [[ */}
+          {autocompleteMatches.length > 0 && (
+            <div className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)] p-2 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-[11px] text-[var(--accent)] flex items-center gap-1 mr-1">
+                <Sparkles className="w-3 h-3" /> Gợi ý liên kết:
+              </span>
+              {autocompleteMatches.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => applyAutocomplete(m.title)}
+                  className="px-2 py-1 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] hover:brightness-110 cursor-pointer"
+                >
+                  {m.sigil} {m.title}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className={`grid gap-3 ${splitPreview ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
+            <textarea
+              rows={11}
+              value={contentMarkdown}
+              onChange={(e) => setContentMarkdown(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-sm font-mono leading-relaxed"
+            />
+            {splitPreview && (
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 p-4 max-h-[300px] overflow-y-auto">
+                <div className="text-[10px] font-mono uppercase text-[var(--accent)] mb-2">
+                  Xem trước trực tiếp (Live Preview)
+                </div>
+                <MarkdownCodexRenderer
+                  markdown={contentMarkdown}
+                  linkLookup={entriesForAutocomplete.map((e) => ({
+                    id: e.id,
+                    slug: e.slug,
+                    title: e.title,
+                    subtitle: e.subtitle,
+                    summary: e.summary,
+                    sigil: e.sigil,
+                    thumbImage: e.thumbImage
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Dynamic Custom Fields */}
+        {activeType && activeType.fieldSchema.length > 0 && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-4 space-y-3">
+            <div className="text-xs font-semibold text-[var(--accent)]">
+              ✦ Trường dữ liệu tùy biến động ({activeType.name})
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {activeType.fieldSchema.map((field) => {
+                const val = customFields[field.key];
+                if (field.type === "table") {
+                  const tbl: TableFieldValue =
+                    val && typeof val === "object" && "headers" in val
+                      ? (val as TableFieldValue)
+                      : { headers: field.columns || ["Cột 1", "Cột 2", "Cột 3"], rows: [] };
+                  return (
+                    <div key={field.key} className="sm:col-span-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-[var(--text-muted)]">{field.label}</label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateField(field.key, {
+                              ...tbl,
+                              rows: [...tbl.rows, tbl.headers.map(() => "")]
+                            })
+                          }
+                          className="text-[11px] px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] cursor-pointer"
+                        >
+                          + Thêm dòng
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        {tbl.rows.map((row, rIdx) => (
+                          <div key={rIdx} className="flex gap-1.5">
+                            {tbl.headers.map((h, cIdx) => (
+                              <input
+                                key={cIdx}
+                                type="text"
+                                value={row[cIdx] || ""}
+                                placeholder={h}
+                                onChange={(e) => {
+                                  const nextRows = tbl.rows.map((r, i) =>
+                                    i === rIdx
+                                      ? r.map((c, j) => (j === cIdx ? e.target.value : c))
+                                      : r
+                                  );
+                                  updateField(field.key, { ...tbl, rows: nextRows });
+                                }}
+                                className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-xs"
+                              />
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateField(field.key, {
+                                  ...tbl,
+                                  rows: tbl.rows.filter((_, i) => i !== rIdx)
+                                })
+                              }
+                              className="p-1 text-rose-400"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={field.key}
+                    className={
+                      field.type === "textarea" || field.type === "private_note"
+                        ? "sm:col-span-2"
+                        : ""
+                    }
+                  >
+                    <label className="block text-xs text-[var(--text-muted)] mb-1">
+                      {field.label}
+                      {field.type === "private_note" && " (Riêng tư — Ẩn với khách)"}
+                    </label>
+                    {field.type === "select" ? (
+                      <select
+                        value={String(val || "")}
+                        onChange={(e) => updateField(field.key, e.target.value)}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+                      >
+                        <option value="">— Chọn —</option>
+                        {(field.options || []).map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    ) : field.type === "multiselect" ? (
+                      <input
+                        type="text"
+                        value={Array.isArray(val) ? val.join(", ") : String(val || "")}
+                        onChange={(e) =>
+                          updateField(
+                            field.key,
+                            e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          )
+                        }
+                        placeholder="Ngăn cách bởi dấu phẩy..."
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+                      />
+                    ) : field.type === "textarea" || field.type === "private_note" ? (
+                      <textarea
+                        rows={2}
+                        value={String(val || "")}
+                        onChange={(e) => updateField(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+                      />
+                    ) : (
+                      <input
+                        type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                        value={val !== undefined && val !== null ? String(val) : ""}
+                        onChange={(e) =>
+                          updateField(
+                            field.key,
+                            field.type === "number" ? Number(e.target.value) : e.target.value
+                          )
+                        }
+                        placeholder={field.placeholder}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* V5.0 Per-Entry Freeform Dynamic Properties Builder (CRUD 10 Kinds) */}
+        <DynamicPropertiesEditor
+          fields={extraFields}
+          entryType={activeType}
+          onChange={setExtraFields}
+        />
+
+        {/* Sources & Private Notes */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Nguồn & Tài liệu tham khảo</label>
+            <textarea
+              rows={2}
+              value={sourcesMarkdown}
+              onChange={(e) => setSourcesMarkdown(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] p-2.5 text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-amber-300 mb-1">Ghi chú Riêng tư / Nháp (Ẩn khách)</label>
+            <textarea
+              rows={2}
+              value={privateNotes}
+              onChange={(e) => setPrivateNotes(e.target.value)}
+              className="w-full rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Media Gallery & Options */}
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/40 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--accent)]">
+              ✦ Thư viện hình ảnh ({gallery.length})
+            </span>
+            <button
+              type="button"
+              onClick={addGalleryItem}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Thêm ảnh
+            </button>
+          </div>
+          {gallery.map((g, idx) => (
+            <div key={g.id} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+              <input
+                type="text"
+                value={g.fullUrl}
+                onChange={(e) =>
+                  setGallery((prev) =>
+                    prev.map((x, i) =>
+                      i === idx
+                        ? { ...x, fullUrl: e.target.value, thumbUrl: x.thumbUrl || e.target.value }
+                        : x
+                    )
+                  )
+                }
+                placeholder="URL ảnh..."
+                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+              />
+              <input
+                type="text"
+                value={g.caption}
+                onChange={(e) =>
+                  setGallery((prev) =>
+                    prev.map((x, i) =>
+                      i === idx ? { ...x, caption: e.target.value, alt: e.target.value } : x
+                    )
+                  )
+                }
+                placeholder="Chú thích ảnh..."
+                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setGallery((prev) => prev.filter((_, i) => i !== idx))}
+                className="text-xs text-rose-400 justify-self-start cursor-pointer"
+              >
+                Xóa ảnh
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            <span>Ghim nổi bật trên Trang Chủ Grand Hall</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={spoilerGate}
+              onChange={(e) => setSpoilerGate(e.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            <span>Bật Màng che Spoiler / Draft Gate</span>
+          </label>
+          {spoilerGate && (
+            <input
+              type="text"
+              value={spoilerLabel}
+              onChange={(e) => setSpoilerLabel(e.target.value)}
+              placeholder="Nhãn cảnh báo..."
+              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1 text-xs"
+            />
+          )}
+        </div>
+
+        {entry && (
+          <input
+            type="text"
+            value={changeSummary}
+            onChange={(e) => setChangeSummary(e.target.value)}
+            placeholder="Ghi chú thay đổi cho Lịch sử phiên bản (Visual Diff)..."
+            className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+          />
+        )}
+
+        <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs cursor-pointer"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 rounded-xl bg-[var(--accent)] text-[#090e1c] font-semibold text-xs hover:brightness-110 disabled:opacity-60 cursor-pointer"
+          >
+            {saving ? "Đang lưu..." : entry ? "Lưu thay đổi" : "Tạo Hồ sơ"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

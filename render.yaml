@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: wiki-codex-atlas
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: wiki-codex
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:render
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wiki-codex-db
+          property: connectionString
+
+databases:
+  - name: wiki-codex-db
+    plan: free
+    region: singapore
+    databaseName: wikicodex
+    user: wikicodex
