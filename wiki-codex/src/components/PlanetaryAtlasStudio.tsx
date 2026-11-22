@@ -46,6 +46,7 @@ import {
 import { CapitalCityBlueprintModal } from "./CapitalCityBlueprintModal";
 import { NationsSpreadsheetModal } from "./NationsSpreadsheetModal";
 import { PlanetaryGlobeView } from "./PlanetaryGlobeView";
+import { WorldAnalyticsHubModal } from "./WorldAnalyticsHubModal";
 import { CONTINENT_NAME_VI } from "@/lib/planetary-atlas/nations-data";
 import {
   computeNormalizedViewportBounds,
@@ -437,6 +438,7 @@ export function PlanetaryAtlasStudio({
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState<boolean>(false);
   const [showSpreadsheetModal, setShowSpreadsheetModal] = useState<boolean>(false);
+  const [showWorldHubModal, setShowWorldHubModal] = useState<boolean>(false);
   const [globe3DMode, setGlobe3DMode] = useState<boolean>(false);
   const [blueprintNation, setBlueprintNation] = useState<PlanetaryNation | null>(null);
 
@@ -1157,6 +1159,15 @@ export function PlanetaryAtlasStudio({
             title="Chấm 3+ điểm để đo diện tích vùng địa lý (km²)"
           >
             Đo Diện tích
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowWorldHubModal(true)}
+            className="codex-press inline-flex items-center gap-1 rounded-lg border border-indigo-500/40 bg-indigo-500/15 px-2.5 py-1 text-xs font-medium text-indigo-200 hover:bg-indigo-500/25 cursor-pointer"
+            title="Mở Trung tâm Phân tích: 450+ Hiệp ước Ngoại giao, Ma trận Giao thương, Biên niên sử Đa làn & Từ nguyên học 360 QG"
+          >
+            Phân tích Thế giới
           </button>
 
           <button
@@ -2567,6 +2578,19 @@ export function PlanetaryAtlasStudio({
           <span className="font-mono text-[11px] text-slate-300">{activeEra.yearRange}</span>
         </div>
       </div>
+
+      {/* Đợt 3: World Analytics Hub (Diplomacy 450+, Trade Matrix, Multi-Lane Timeline, Toponymy 360) */}
+      {showWorldHubModal && (
+        <WorldAnalyticsHubModal
+          bundle={bundle}
+          onClose={() => setShowWorldHubModal(false)}
+          onFocusNation={(n) => {
+            setGlobe3DMode(false);
+            flyToNation(n);
+          }}
+          onOpenWikiEntry={onOpenEntry}
+        />
+      )}
 
       {/* #38 & #42 Spreadsheet Table View + CSV Export Modal */}
       {showSpreadsheetModal && (

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { BookOpen, Download, Printer, X } from "lucide-react";
 import type { Category, EntryType } from "@/types/codex";
+import { buildCodexEpubBuffer } from "@/lib/epub-exporter";
 
 interface BookPublisherModalProps {
   workspaceId: string;
@@ -29,6 +30,42 @@ export function BookPublisherModal({
   const [scopeId, setScopeId] = useState("");
   const [includePower, setIncludePower] = useState(true);
   const [includeQuotes, setIncludeQuotes] = useState(true);
+  const [exportingEpub, setExportingEpub] = useState(false);
+
+  async function handleDownloadEpub() {
+    setExportingEpub(true);
+    try {
+      const qs = new URLSearchParams({ workspaceId, limit: "120" });
+      if (scope === "category" && scopeId) qs.set("categoryId", scopeId);
+      if (scope === "entryType" && scopeId) qs.set("entryTypeId", scopeId);
+      const res = await fetch(`/api/entries?${qs.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      const chapters = items.map((e: { id: string; title: string; subtitle?: string; summary?: string }) => ({
+        id: e.id,
+        title: e.title,
+        subtitle: e.subtitle,
+        summary: e.summary,
+        contentMarkdown: `## Tóm tắt Bách khoa\n\n${e.summary || e.subtitle || e.title}`
+      }));
+      const bytes = await buildCodexEpubBuffer({
+        bookTitle: title,
+        author,
+        description: preface,
+        chapters: chapters.length > 0 ? chapters : [{ id: "ch0", title, contentMarkdown: preface }]
+      });
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/epub+zip" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${workspaceName.toLowerCase().replace(/\s+/g, "-")}-codex.epub`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setExportingEpub(false);
+    }
+  }
 
   function buildUrl() {
     const params = new URLSearchParams({
@@ -191,6 +228,14 @@ export function BookPublisherModal({
         </div>
 
         <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
+          <button
+            type="button"
+            disabled={exportingEpub}
+            onClick={handleDownloadEpub}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/25 cursor-pointer disabled:opacity-50"
+          >
+            <BookOpen className="w-3.5 h-3.5" /> {exportingEpub ? "Đang đóng gói…" : "Tải Sách .EPUB"}
+          </button>
           <button
             type="button"
             onClick={handleDownloadHtml}

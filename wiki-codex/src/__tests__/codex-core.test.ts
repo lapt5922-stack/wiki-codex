@@ -789,6 +789,14 @@ import {
   extractFootnotes,
   extractMarkdownToc
 } from "@/lib/wiki-intelligence";
+import {
+  analyzeNationToponymy,
+  auditAsymmetricRelations,
+  detectChronologyParadoxes,
+  parseBatchEntriesCsv,
+  renameWikilinkAcrossMarkdown
+} from "@/lib/wiki-auditor-pro";
+import { buildCodexEpubBuffer } from "@/lib/epub-exporter";
 
 describe("14. Mega-Planet World Atlas (360 Quốc gia, Voronoi, Zero-Overlap LOD & Dijkstra)", () => {
   it("sinh đủ 360 quốc gia & lãnh thổ trên 8 lục địa + hải vực, đa giác Voronoi hợp lệ và lõi Tam Biên đồng quy", () => {
@@ -1089,6 +1097,88 @@ describe("15. Wiki Intelligence 2.0 (TOC, Footnotes, Completeness, Diff, Auto-Wi
     expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-1" && r.targetEntryId === "ent-nation-2")).toBe(true);
     expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-1" && r.targetEntryId === "ent-nation-3")).toBe(true);
     expect(seed.relations.some((r) => r.sourceEntryId === "ent-nation-2" && r.targetEntryId === "ent-nation-3")).toBe(true);
+  });
+
+  it("Đợt 2–4: Kiểm toán Niên đại, Quan hệ bất đối xứng, Từ nguyên học 360 QG, Safe Rename, Batch CSV & Xuất EPUB", async () => {
+    const bundle = buildPlanetaryAtlasBundle();
+
+    // #33 Toponymy 360
+    const topo = analyzeNationToponymy(bundle.nations[0]);
+    expect(topo.nationNum).toBe(1);
+    expect(topo.linguisticFamily).toContain("Aurelian");
+    expect(topo.prefixMeaning.length).toBeGreaterThan(5);
+
+    // #29 Chronology Paradox Detector
+    const paradoxes = detectChronologyParadoxes(
+      [],
+      [
+        {
+          id: "e1",
+          title: "Test Nation",
+          eraSnapshots: [
+            { id: "s1", eraLabel: "E1", yearLabel: "Năm 500", summary: "", keyChanges: "" },
+            { id: "s2", eraLabel: "E2", yearLabel: "Năm 200", summary: "", keyChanges: "" }
+          ]
+        }
+      ]
+    );
+    expect(paradoxes.length).toBe(1);
+
+    // #30 Asymmetric Relation Auditor
+    const asym = auditAsymmetricRelations(
+      [
+        {
+          id: "r1",
+          workspaceId: "ws",
+          sourceEntryId: "a",
+          targetEntryId: "b",
+          relationType: "Đồng minh",
+          note: "",
+          createdAt: ""
+        }
+      ],
+      [
+        { id: "a", title: "Valoria" },
+        { id: "b", title: "Ignisia" }
+      ]
+    );
+    expect(asym).toHaveLength(1);
+    expect(asym[0].kind).toBe("asymmetric_alliance");
+
+    // #32 Global Safe Rename
+    const renamed = renameWikilinkAcrossMarkdown(
+      "Hiệp ước giữa [[Valoria]] và [[Valoria|Đế chế Valoria]].",
+      "Valoria",
+      "Liên bang Hoàng gia Valoria"
+    );
+    expect(renamed).toBe(
+      "Hiệp ước giữa [[Liên bang Hoàng gia Valoria]] và [[Liên bang Hoàng gia Valoria|Đế chế Valoria]]."
+    );
+
+    // #31 Batch CSV Parser
+    const batch = parseBatchEntriesCsv(
+      'title,summary,tags,markdown\n"Thành cổ Aethel","Di tích cổ","di-tich;co-dai","## Tổng quan\\nNội dung"'
+    );
+    expect(batch).toHaveLength(1);
+    expect(batch[0].title).toBe("Thành cổ Aethel");
+    expect(batch[0].tags).toEqual(["di-tich", "co-dai"]);
+
+    // #41 EPUB E-Book Generator
+    const epubBytes = await buildCodexEpubBuffer({
+      bookTitle: "Đại Bách Khoa Aethelgard",
+      author: "Ban Biên Tập",
+      chapters: [
+        {
+          id: "ch1",
+          title: "Liên bang Hoàng gia Valoria",
+          contentMarkdown: "## Tổng quan\n\nHồ sơ chương 1."
+        }
+      ]
+    });
+    expect(epubBytes.byteLength).toBeGreaterThan(500);
+    // ZIP magic bytes PK (0x50 0x4B)
+    expect(epubBytes[0]).toBe(0x50);
+    expect(epubBytes[1]).toBe(0x4b);
   });
 });
 

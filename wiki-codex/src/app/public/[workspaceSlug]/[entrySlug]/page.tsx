@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadState } from "@/db/repository";
@@ -5,6 +6,41 @@ import { sanitizeEntryForRole } from "@/lib/rbac";
 import { PublicEntryArticleClient } from "@/components/PublicEntryArticleClient";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ workspaceSlug: string; entrySlug: string }>;
+}): Promise<Metadata> {
+  const { workspaceSlug, entrySlug } = await params;
+  const state = await loadState();
+  const ws = state.workspaces.find((w) => w.slug === workspaceSlug && w.isPublic);
+  const rawEntry = ws
+    ? state.entries.find((e) => e.workspaceId === ws.id && e.slug === entrySlug)
+    : null;
+  if (!ws || !rawEntry || rawEntry.deletedAt || rawEntry.visibility !== "public") {
+    return { title: "Hồ sơ không tồn tại — Aethel Codex" };
+  }
+  const title = `${rawEntry.title} — ${ws.name}`;
+  const description =
+    rawEntry.summary || rawEntry.subtitle || `Hồ sơ bách khoa ${rawEntry.title} trên Aethel Codex.`;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      siteName: ws.name,
+      images: rawEntry.coverImage ? [{ url: rawEntry.coverImage }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+}
 
 export default async function PublicEntryPage({
   params
