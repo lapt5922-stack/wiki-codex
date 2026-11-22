@@ -773,6 +773,7 @@ import {
 import {
   computeExpeditionTravel,
   findShortestNationPath,
+  sampleRouteElevationProfile,
 } from "@/lib/planetary-atlas/climate-geology";
 import { selectZeroOverlapLabels } from "@/lib/planetary-atlas/lod-engine";
 import { samplePlanetaryTerrainPixel } from "@/lib/planetary-atlas/terrain-backdrop";
@@ -886,6 +887,20 @@ describe("14. Mega-Planet World Atlas (360 Quốc gia, Voronoi, Zero-Overlap LOD
     expect(report.footDays).toBeGreaterThan(report.caravanDays);
     expect(report.caravanDays).toBeGreaterThan(report.sailingDays);
     expect(report.airshipHours).toBeGreaterThan(0);
+
+    // Elevation cross-section profile along route
+    const profile = sampleRouteElevationProfile(
+      [
+        { x: 0.2, y: 0.3 },
+        { x: 0.6, y: 0.3 }
+      ],
+      24,
+      bundle.circumferenceKm
+    );
+    expect(profile).toHaveLength(24);
+    expect(profile[0].distKm).toBe(0);
+    expect(profile[23].distKm).toBe(25600);
+    expect(profile.every((p) => p.elevationM > 0)).toBe(true);
   });
 
   it("pre-compute svgPath/bbox cho 360 quốc gia và sinh pixel nền địa hình 3D khớp 8 lục địa", () => {

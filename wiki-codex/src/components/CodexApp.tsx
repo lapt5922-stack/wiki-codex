@@ -66,6 +66,7 @@ import { EntryTypeManagerModal } from "./EntryTypeManagerModal";
 import { KnowledgeGraphView } from "./KnowledgeGraphView";
 import { TimelineView } from "./TimelineView";
 import { AtlasView } from "./AtlasView";
+import { AlmanacLoreTrailsPanel } from "./AlmanacLoreTrailsPanel";
 import { CategorySliderRibbon } from "./CategorySliderRibbon";
 import { ConlangStudioView } from "./ConlangStudioView";
 import { LoreboardView } from "./LoreboardView";
@@ -800,6 +801,13 @@ export function CodexApp() {
                 recentIds={recentIds}
                 onOpenEntry={handleOpenEntry}
                 onNavigate={(sec) => setSection(sec as MainSection)}
+              />
+              <AlmanacLoreTrailsPanel
+                onOpenEntry={handleOpenEntry}
+                onOpenAtlas={() => {
+                  setSection("atlas");
+                  setActiveEntryId(null);
+                }}
               />
             </div>
           ) : section === "database" ? (

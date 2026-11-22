@@ -702,6 +702,64 @@ export function computeExpeditionTravel(
   };
 }
 
+export interface ElevationProfilePoint {
+  distKm: number;
+  elevationM: number;
+  tempC: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * Samples N evenly spaced points along a multi-waypoint route to draw
+ * an encyclopedic Elevation Cross-Section Profile chart.
+ */
+export function sampleRouteElevationProfile(
+  points: Point2D[],
+  samples = 24,
+  circumferenceKm = PLANET_CIRCUMFERENCE_KM,
+): ElevationProfilePoint[] {
+  if (points.length < 2 || samples < 2) return [];
+
+  const segLengths: number[] = [];
+  let totalKm = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dxKm = (points[i].x - points[i - 1].x) * circumferenceKm;
+    const dyKm = (points[i].y - points[i - 1].y) * (circumferenceKm * 0.5);
+    const len = Math.hypot(dxKm, dyKm);
+    segLengths.push(len);
+    totalKm += len;
+  }
+  if (totalKm <= 0) return [];
+
+  const out: ElevationProfilePoint[] = [];
+  for (let s = 0; s < samples; s++) {
+    const targetKm = (s / (samples - 1)) * totalKm;
+    let acc = 0;
+    let segIdx = 0;
+    while (segIdx < segLengths.length - 1 && acc + segLengths[segIdx] < targetKm) {
+      acc += segLengths[segIdx];
+      segIdx++;
+    }
+    const segLen = Math.max(1e-6, segLengths[segIdx]);
+    const t = Math.max(0, Math.min(1, (targetKm - acc) / segLen));
+    const a = points[segIdx];
+    const b = points[segIdx + 1];
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t;
+    const elevationM = computeElevationMeters(x, y, "TEMPERATE_PLAINS");
+    const tempC = computeLatitudeTemperatureC(x, y, "TEMPERATE_PLAINS", elevationM);
+    out.push({
+      distKm: Math.round(targetKm),
+      elevationM,
+      tempC,
+      x: Number(x.toFixed(4)),
+      y: Number(y.toFixed(4)),
+    });
+  }
+  return out;
+}
+
 export interface ShortestNationPathResult {
   nationIds: string[];
   totalKm: number;

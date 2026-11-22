@@ -35,7 +35,10 @@ import {
   computeExpeditionTravel,
   findShortestNationPath,
   resolveNationLensColor,
+  sampleRouteElevationProfile,
 } from "@/lib/planetary-atlas/climate-geology";
+import { CapitalCityBlueprintModal } from "./CapitalCityBlueprintModal";
+import { PlanetaryGlobeView } from "./PlanetaryGlobeView";
 import { CONTINENT_NAME_VI } from "@/lib/planetary-atlas/nations-data";
 import {
   computeNormalizedViewportBounds,
@@ -410,6 +413,8 @@ export function PlanetaryAtlasStudio({
   const [compareIds, setCompareIds] = useState<string[]>(["nation-1", "nation-2", "nation-3"]);
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState<boolean>(false);
+  const [globe3DMode, setGlobe3DMode] = useState<boolean>(false);
+  const [blueprintNation, setBlueprintNation] = useState<PlanetaryNation | null>(null);
 
   const continentStats = useMemo(() => {
     const entryTitlesNorm = entries.map((e) => normalizeSearchText(e.title));
@@ -577,6 +582,11 @@ export function PlanetaryAtlasStudio({
 
   const rulerReport = useMemo(
     () => computeExpeditionTravel(rulerPoints, bundle.circumferenceKm),
+    [rulerPoints, bundle.circumferenceKm],
+  );
+
+  const elevationProfile = useMemo(
+    () => sampleRouteElevationProfile(rulerPoints, 24, bundle.circumferenceKm),
     [rulerPoints, bundle.circumferenceKm],
   );
 
@@ -1055,6 +1065,20 @@ export function PlanetaryAtlasStudio({
 
           <button
             type="button"
+            onClick={() => setGlobe3DMode((v) => !v)}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+              globe3DMode
+                ? "border-sky-400 bg-sky-500/20 text-sky-200 shadow"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+            }`}
+            title="Chuyển đổi giữa Bản đồ Phẳng 2D và Quả cầu 3D xoay 360°"
+          >
+            <Globe2 className="h-3.5 w-3.5 text-sky-400" />
+            {globe3DMode ? "Bản đồ 2D" : "Quả cầu 3D"}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowAnalyticsModal(true)}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800"
             title="Thống kê 8 Lục địa & Độ phủ Hồ sơ Wiki"
@@ -1303,7 +1327,14 @@ export function PlanetaryAtlasStudio({
           </aside>
         )}
 
-        {/* Center Interactive Mega-Planet Viewport */}
+        {/* Center Interactive Mega-Planet Viewport (2D Map or 3D Orthographic Globe) */}
+        {globe3DMode ? (
+          <PlanetaryGlobeView
+            bundle={bundle}
+            selectedNationId={selectedNationId}
+            onSelectNation={(n) => setSelectedNationId(n.id)}
+          />
+        ) : (
         <div
           ref={viewportRef}
           onPointerDown={handlePointerDown}
@@ -1809,6 +1840,31 @@ export function PlanetaryAtlasStudio({
                   <div>Khinh khí cầu: <b>{rulerReport.airshipHours} giờ</b></div>
                 </div>
               )}
+              {elevationProfile.length >= 2 && (() => {
+                const maxEl = Math.max(1000, ...elevationProfile.map((p) => p.elevationM));
+                const pts = elevationProfile
+                  .map((p, i) => {
+                    const px = (i / (elevationProfile.length - 1)) * 280;
+                    const py = 58 - (p.elevationM / maxEl) * 50;
+                    return `${px.toFixed(1)},${py.toFixed(1)}`;
+                  })
+                  .join(" ");
+                const areaPts = `0,60 ${pts} 280,60`;
+                return (
+                  <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/90 p-2">
+                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                      <span>Mặt cắt Địa hình dọc tuyến</span>
+                      <span className="font-mono text-emerald-300">
+                        Đỉnh {Math.max(...elevationProfile.map((p) => p.elevationM)).toLocaleString("vi-VN")} m
+                      </span>
+                    </div>
+                    <svg viewBox="0 0 280 62" className="w-full h-14 block">
+                      <polygon points={areaPts} fill="rgba(16, 185, 129, 0.22)" />
+                      <polyline points={pts} fill="none" stroke="#34d399" strokeWidth={1.8} />
+                    </svg>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1917,6 +1973,7 @@ export function PlanetaryAtlasStudio({
             </svg>
           </div>
         </div>
+        )}
 
         {/* Right Nation Encyclopedic Inspector (Mobile Bottom Sheet / Desktop Right Drawer) */}
         {selectedNation && (
@@ -1966,6 +2023,16 @@ export function PlanetaryAtlasStudio({
                 >
                   <BookOpen className="h-3.5 w-3.5" />
                   Mở Hồ sơ Wiki đầy đủ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBlueprintNation(selectedNation)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/50 bg-cyan-500/15 px-2.5 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                  title="Sinh sơ đồ quy hoạch vector của thủ đô"
+                >
+                  <Compass className="h-3.5 w-3.5" />
+                  Sơ đồ Thủ đô
                 </button>
 
                 <button
@@ -2188,6 +2255,14 @@ export function PlanetaryAtlasStudio({
           <span className="font-mono text-[11px] text-slate-300">{activeEra.yearRange}</span>
         </div>
       </div>
+
+      {/* Procedural Capital City Blueprint Modal */}
+      {blueprintNation && (
+        <CapitalCityBlueprintModal
+          nation={blueprintNation}
+          onClose={() => setBlueprintNation(null)}
+        />
+      )}
 
       {/* Continent & Wiki Coverage Analytics Modal */}
       {showAnalyticsModal && (

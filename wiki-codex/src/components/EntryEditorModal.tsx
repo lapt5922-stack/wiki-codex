@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Columns2, Image as ImageIcon, Plus, Sparkles, Trash2, X } from "lucide-react";
 import type {
   CanonStatus,
@@ -106,6 +106,108 @@ export function EntryEditorModal({
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Auto-Save Local Draft (prevents data loss on refresh/mobile)
+  const draftKey = `codex_autosave_draft_${workspaceId}_${entry?.id || "new"}`;
+  const [savedDraftPrompt, setSavedDraftPrompt] = useState<{
+    title: string;
+    contentMarkdown: string;
+    savedAt: string;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (
+          parsed &&
+          typeof parsed.contentMarkdown === "string" &&
+          parsed.contentMarkdown !== (entry?.contentMarkdown || initialContent)
+        ) {
+          setSavedDraftPrompt(parsed);
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            title,
+            contentMarkdown,
+            savedAt: new Date().toLocaleTimeString("vi-VN"),
+          })
+        );
+      } catch {
+        // ignore quota errors
+      }
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, title, contentMarkdown]);
+
+  // Slash Commands (/) quick encyclopedic block inserter
+  const SLASH_COMMANDS = useMemo(
+    () => [
+      {
+        cmd: "callout",
+        label: "/callout — Hộp Ghi chú Sử liệu",
+        snippet: "> **Trích lục Sử liệu**: Ghi chú chuyên sâu hoặc giả thuyết học giả tại đây."
+      },
+      {
+        cmd: "table",
+        label: "/table — Bảng Dữ liệu Chuẩn",
+        snippet: "| Thuộc tính | Chi tiết | Ghi chú |\n| --- | --- | --- |\n| Hạng mục 1 | Giá trị | Nguồn |"
+      },
+      {
+        cmd: "footnote",
+        label: "/footnote — Chú thích Chân trang [^1]",
+        snippet: "Nội dung có dẫn nguồn[^1].\n\n[^1]: Tên tài liệu tham khảo, Viện Lưu trữ Hành tinh."
+      },
+      {
+        cmd: "timeline",
+        label: "/timeline — Khối Mốc Lịch sử",
+        snippet: "## Mốc Biên niên sử\n\n- **Năm 100**: Sự kiện khởi đầu.\n- **Năm 350**: Ký kết hiệp ước trọng đại."
+      },
+      {
+        cmd: "quote",
+        label: "/quote — Trích dẫn Đề từ",
+        snippet: "> *\"Tri thức là ngọn hải đăng vượt qua mọi kỷ nguyên.\"* — Hiến chương Lưu trữ"
+      },
+      {
+        cmd: "h2",
+        label: "/h2 — Chương Mục Mới",
+        snippet: "## Tiêu đề Chương Mới\n\nNội dung chi tiết..."
+      }
+    ],
+    []
+  );
+
+  const slashTriggerMatch = useMemo(() => {
+    const m = /(?:^|\n)\/([a-z0-9-]*)$/i.exec(contentMarkdown);
+    return m ? m[1].toLowerCase() : null;
+  }, [contentMarkdown]);
+
+  const slashMatches = useMemo(() => {
+    if (slashTriggerMatch === null) return [];
+    return SLASH_COMMANDS.filter(
+      (c) => !slashTriggerMatch || c.cmd.includes(slashTriggerMatch)
+    );
+  }, [slashTriggerMatch, SLASH_COMMANDS]);
+
+  function applySlashCommand(snippet: string) {
+    setContentMarkdown((prev) =>
+      prev.replace(/(?:^|\n)\/[a-z0-9-]*$/i, (match) =>
+        match.startsWith("\n") ? `\n${snippet}` : snippet
+      )
+    );
+  }
 
   // Inline [[Wikilink]] Autocomplete detection
   const wikiTriggerMatch = useMemo(() => {
@@ -223,6 +325,11 @@ export function EntryEditorModal({
       if (!res.ok) {
         setError(data.error || "Không thể lưu hồ sơ.");
       } else {
+        try {
+          window.localStorage.removeItem(draftKey);
+        } catch {
+          // ignore
+        }
         await onSaved(data.entry);
       }
     } finally {
@@ -583,6 +690,61 @@ export function EntryEditorModal({
               </button>
             </div>
           </div>
+
+          {/* Auto-Save Local Draft Restore Banner */}
+          {savedDraftPrompt && (
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-emerald-200">
+                ✦ Phát hiện bản nháp tự động lưu lúc <b>{savedDraftPrompt.savedAt}</b>.
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (savedDraftPrompt.title) setTitle(savedDraftPrompt.title);
+                    setContentMarkdown(savedDraftPrompt.contentMarkdown);
+                    setSavedDraftPrompt(null);
+                  }}
+                  className="rounded-lg bg-emerald-500 px-2.5 py-1 text-[#090e1c] font-semibold cursor-pointer"
+                >
+                  Khôi phục nháp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSavedDraftPrompt(null);
+                    try {
+                      window.localStorage.removeItem(draftKey);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="rounded-lg border border-emerald-500/40 px-2 py-1 text-emerald-200 cursor-pointer"
+                >
+                  Bỏ qua
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Slash Command (/) Menu */}
+          {slashMatches.length > 0 && (
+            <div className="rounded-xl border border-cyan-500/50 bg-slate-950/90 p-2 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-[11px] text-cyan-300 font-semibold mr-1">
+                / Lệnh nhanh Wiki:
+              </span>
+              {slashMatches.map((sc) => (
+                <button
+                  key={sc.cmd}
+                  type="button"
+                  onClick={() => applySlashCommand(sc.snippet)}
+                  className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-cyan-100 hover:bg-cyan-500/25 cursor-pointer"
+                >
+                  {sc.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Autocomplete dropdown when typing [[ */}
           {autocompleteMatches.length > 0 && (
