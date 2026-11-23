@@ -26,6 +26,7 @@ import {
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Printer,
   Rocket,
   ScrollText,
@@ -104,7 +105,9 @@ import { CharacterCodexHub } from "./character-codex/CharacterCodexHub";
 import { KingdomCodexHub } from "./kingdom-codex/KingdomCodexHub";
 import { BookmarksDrawer } from "./BookmarksDrawer";
 import { WorldAnalyticsDashboard } from "./WorldAnalyticsDashboard";
-import { CodexModulesHub } from "./CodexModulesHub";
+import { UnifiedCodexWorkspace, type UnifiedCodexTab } from "./UnifiedCodexWorkspace";
+import { UnifiedCreateDossierModal } from "./UnifiedCreateDossierModal";
+import { classifyEntryModule } from "@/lib/codex-modules";
 import {
   AuthModal,
   ImportExportModal,
@@ -533,10 +536,7 @@ export function CodexApp() {
     editorOnly?: boolean;
   }> = [
     { id: "home", label: "Đại Sảnh", icon: LayoutDashboard },
-    { id: "modules", label: "Thư viện 14 Codex", icon: Library },
-    { id: "database", label: "Kho Hồ sơ", icon: BookOpen },
-    { id: "characters", label: "Character Codex", icon: Users },
-    { id: "kingdoms", label: "Kingdom Codex (360)", icon: Crown },
+    { id: "database", label: "Hồ sơ & Codex (14)", icon: Library },
     { id: "v4studio", label: "World Codex & Vũ trụ", icon: Layers },
     { id: "chronicles", label: "Phòng Đọc Biên niên", icon: ScrollText },
     { id: "omniverse", label: "Hệ thống Năng lực & Ma pháp", icon: Sparkles },
@@ -563,6 +563,14 @@ export function CodexApp() {
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [focusReaderMode, setFocusReaderMode] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [codexTab, setCodexTab] = useState<UnifiedCodexTab>("all");
+  const [unifiedCreateOpen, setUnifiedCreateOpen] = useState(false);
+
+  const openUnifiedCodex = useCallback((tab: UnifiedCodexTab = "all") => {
+    setCodexTab(tab);
+    setSection("database");
+    setActiveEntryId(null);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setShowBackToTop(window.scrollY > 360);
@@ -793,6 +801,18 @@ export function CodexApp() {
               </div>
             </div>
 
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setUnifiedCreateOpen(true)}
+                title="Tạo hồ sơ mới trong 14 phân hệ Codex"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs hover:brightness-110 cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Tạo Hồ sơ</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setBookmarksOpen(true)}
@@ -1003,15 +1023,22 @@ export function CodexApp() {
                 }}
               />
             </div>
-          ) : section === "modules" ? (
-            <CodexModulesHub
-              entries={entries}
-              canEdit={canEdit}
-              onOpenEntry={handleOpenEntry}
-              onNavigateSection={(sec) => {
-                setSection(sec as MainSection);
-                setActiveEntryId(null);
+          ) : section === "modules" || section === "database" || section === "characters" || section === "kingdoms" ? (
+            <UnifiedCodexWorkspace
+              activeTab={
+                section === "characters"
+                  ? "character"
+                  : section === "kingdoms"
+                  ? "kingdom"
+                  : codexTab
+              }
+              onChangeTab={(nextTab) => {
+                setCodexTab(nextTab);
+                setSection("database");
               }}
+              totalEntries={totalEntries}
+              canEdit={canEdit}
+              onOpenUnifiedCreate={() => setUnifiedCreateOpen(true)}
               onCreateInModule={(mod) =>
                 setEditorState({
                   open: true,
@@ -1020,74 +1047,100 @@ export function CodexApp() {
                   initialContent: mod.starterMarkdown
                 })
               }
-            />
-          ) : section === "database" ? (
-            <div className="space-y-4 animate-codex-fade-up">
-              <CategorySliderRibbon
-                categories={categories}
-                categoryCounts={categoryCounts}
-                totalEntries={totalEntries}
-                selectedCategoryId={selectedCategoryId || ""}
-                onSelectCategory={(cid) => {
-                  setSelectedCategoryId(cid || null);
-                  setPage(1);
-                }}
-              />
-              <DatabaseView
-              workspaceId={activeWorkspaceId}
-              entries={entries}
-              total={totalEntries}
-              page={page}
-              totalPages={totalPages}
-              loading={loadingEntries}
-              entryTypes={entryTypes}
-              categories={categories}
-              allTags={allTags}
-              canEdit={canEdit}
-              searchQuery={searchQuery}
-              filterTypeId={filterTypeId}
-              filterStatus={filterStatus}
-              filterVisibility={filterVisibility}
-              filterTag={filterTag}
-              minPowerFilter={minPowerFilter}
-              maxPowerFilter={maxPowerFilter}
-              onClearPowerFilter={() => {
-                setMinPowerFilter(null);
-                setMaxPowerFilter(null);
-                setPage(1);
+              renderCharacterHub={() => (
+                <CharacterCodexHub
+                  workspaceId={activeWorkspaceId}
+                  canEdit={canEdit}
+                  onOpenNationEntry={(entryId) => handleOpenEntry(entryId)}
+                />
+              )}
+              renderKingdomHub={() => (
+                <KingdomCodexHub
+                  workspaceId={activeWorkspaceId}
+                  canEdit={canEdit}
+                  onViewOnAtlas={(nationId) => {
+                    setAtlasFocusNationId(nationId);
+                    setSection("atlas");
+                    setActiveEntryId(null);
+                  }}
+                  onOpenWikiEntry={(entryId) => handleOpenEntry(entryId)}
+                  onOpenCharacter={() => openUnifiedCodex("character")}
+                />
+              )}
+              renderDatabaseView={(activeMod) => {
+                const modEntries = activeMod
+                  ? entries.filter((e) => classifyEntryModule(e) === activeMod.id)
+                  : entries;
+                return (
+                  <div className="space-y-4">
+                    <CategorySliderRibbon
+                      categories={categories}
+                      categoryCounts={categoryCounts}
+                      totalEntries={totalEntries}
+                      selectedCategoryId={selectedCategoryId || ""}
+                      onSelectCategory={(cid) => {
+                        setSelectedCategoryId(cid || null);
+                        setPage(1);
+                      }}
+                    />
+                    <DatabaseView
+                      workspaceId={activeWorkspaceId}
+                      entries={modEntries}
+                      total={activeMod ? modEntries.length : totalEntries}
+                      page={page}
+                      totalPages={activeMod ? 1 : totalPages}
+                      loading={loadingEntries}
+                      entryTypes={entryTypes}
+                      categories={categories}
+                      allTags={allTags}
+                      canEdit={canEdit}
+                      searchQuery={searchQuery}
+                      filterTypeId={filterTypeId}
+                      filterStatus={filterStatus}
+                      filterVisibility={filterVisibility}
+                      filterTag={filterTag}
+                      minPowerFilter={minPowerFilter}
+                      maxPowerFilter={maxPowerFilter}
+                      onClearPowerFilter={() => {
+                        setMinPowerFilter(null);
+                        setMaxPowerFilter(null);
+                        setPage(1);
+                      }}
+                      sortBy={sortBy}
+                      savedViews={savedViews}
+                      onApplySavedView={(sv) => {
+                        if (sv.filters.query !== undefined) {
+                          setSearchQuery(sv.filters.query);
+                          setDebouncedSearch(sv.filters.query);
+                        }
+                        if (sv.filters.categoryId !== undefined) {
+                          setSelectedCategoryId(sv.filters.categoryId ?? null);
+                        }
+                        setFilterTypeId(sv.filters.entryTypeId || "");
+                        setMinPowerFilter(sv.filters.minPower ?? null);
+                        setMaxPowerFilter(sv.filters.maxPower ?? null);
+                        setSortBy(sv.filters.sortBy || "powerLevel");
+                        setPage(1);
+                      }}
+                      onOpenShowcaseDeck={() => setShowcaseOpen(true)}
+                      onSearchChange={setSearchQuery}
+                      onFilterTypeChange={(v) => { setFilterTypeId(v); setPage(1); }}
+                      onFilterStatusChange={(v) => { setFilterStatus(v); setPage(1); }}
+                      onFilterVisibilityChange={(v) => { setFilterVisibility(v); setPage(1); }}
+                      onFilterTagChange={(v) => { setFilterTag(v); setPage(1); }}
+                      onSortByChange={setSortBy}
+                      onPageChange={setPage}
+                      onOpenEntry={handleOpenEntry}
+                      onCreateEntry={() => setUnifiedCreateOpen(true)}
+                      onBulkAction={handleBulkAction}
+                      onCompareMatrix={(ids) => setMatrixIds(ids)}
+                      onOpenBookMode={() => setBookModeOpen(true)}
+                      onOpenRandom={handleOpenRandom}
+                    />
+                  </div>
+                );
               }}
-              sortBy={sortBy}
-              savedViews={savedViews}
-              onApplySavedView={(sv) => {
-                if (sv.filters.query !== undefined) {
-                  setSearchQuery(sv.filters.query);
-                  setDebouncedSearch(sv.filters.query);
-                }
-                if (sv.filters.categoryId !== undefined) {
-                  setSelectedCategoryId(sv.filters.categoryId ?? null);
-                }
-                setFilterTypeId(sv.filters.entryTypeId || "");
-                setMinPowerFilter(sv.filters.minPower ?? null);
-                setMaxPowerFilter(sv.filters.maxPower ?? null);
-                setSortBy(sv.filters.sortBy || "powerLevel");
-                setPage(1);
-              }}
-              onOpenShowcaseDeck={() => setShowcaseOpen(true)}
-              onSearchChange={setSearchQuery}
-              onFilterTypeChange={(v) => { setFilterTypeId(v); setPage(1); }}
-              onFilterStatusChange={(v) => { setFilterStatus(v); setPage(1); }}
-              onFilterVisibilityChange={(v) => { setFilterVisibility(v); setPage(1); }}
-              onFilterTagChange={(v) => { setFilterTag(v); setPage(1); }}
-              onSortByChange={setSortBy}
-              onPageChange={setPage}
-              onOpenEntry={handleOpenEntry}
-              onCreateEntry={() => setEditorState({ open: true, entry: null })}
-              onBulkAction={handleBulkAction}
-              onCompareMatrix={(ids) => setMatrixIds(ids)}
-              onOpenBookMode={() => setBookModeOpen(true)}
-              onOpenRandom={handleOpenRandom}
             />
-            </div>
           ) : section === "omniverse" ? (
             <V3OmniverseStudioView
               workspaceId={activeWorkspaceId}
@@ -1119,27 +1172,6 @@ export function CodexApp() {
               canEdit={canEdit}
               onOpenEntry={handleOpenEntry}
               onCreateRedLink={handleCreateRedLink}
-            />
-          ) : section === "characters" ? (
-            <CharacterCodexHub
-              workspaceId={activeWorkspaceId}
-              canEdit={canEdit}
-              onOpenNationEntry={(entryId) => handleOpenEntry(entryId)}
-            />
-          ) : section === "kingdoms" ? (
-            <KingdomCodexHub
-              workspaceId={activeWorkspaceId}
-              canEdit={canEdit}
-              onViewOnAtlas={(nationId) => {
-                setAtlasFocusNationId(nationId);
-                setSection("atlas");
-                setActiveEntryId(null);
-              }}
-              onOpenWikiEntry={(entryId) => handleOpenEntry(entryId)}
-              onOpenCharacter={() => {
-                setSection("characters");
-                setActiveEntryId(null);
-              }}
             />
           ) : section === "graph" ? (
             <KnowledgeGraphView workspaceId={activeWorkspaceId} entries={entries} onOpenEntry={handleOpenEntry} />
@@ -1394,14 +1426,24 @@ export function CodexApp() {
         open={bookmarksOpen}
         onClose={() => setBookmarksOpen(false)}
         onOpenEntry={(id) => handleOpenEntry(id)}
-        onOpenCharacters={() => {
-          setSection("characters");
-          setActiveEntryId(null);
-        }}
-        onOpenKingdoms={() => {
-          setSection("kingdoms");
-          setActiveEntryId(null);
-        }}
+        onOpenCharacters={() => openUnifiedCodex("character")}
+        onOpenKingdoms={() => openUnifiedCodex("kingdom")}
+      />
+
+      {/* Unified 14-Module Create Dossier Launcher */}
+      <UnifiedCreateDossierModal
+        open={unifiedCreateOpen}
+        onClose={() => setUnifiedCreateOpen(false)}
+        onCreateCharacter={() => openUnifiedCodex("character")}
+        onCreateKingdom={() => openUnifiedCodex("kingdom")}
+        onCreateStandardEntry={(mod) =>
+          setEditorState({
+            open: true,
+            entry: null,
+            initialTitle: `[${mod.idPrefix}] `,
+            initialContent: mod.starterMarkdown
+          })
+        }
       />
 
       {/* Floating Scratchpad */}
