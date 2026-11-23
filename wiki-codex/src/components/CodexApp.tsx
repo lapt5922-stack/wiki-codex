@@ -6,6 +6,7 @@ import {
   Bookmark,
   BookOpen,
   Calendar,
+  Crown,
   Download,
   FolderKanban,
   FolderTree,
@@ -30,6 +31,7 @@ import {
   Sparkles,
   StickyNote,
   Trash2,
+  Users,
   X
 } from "lucide-react";
 import type {
@@ -93,6 +95,8 @@ import { BatchCsvImportModal } from "./BatchCsvImportModal";
 import { DeviceUISwitcher, useDeviceUI } from "@/lib/device-ui";
 import { ReadingBreadcrumbTrail, type TrailItem } from "./EntityVisualWidgets";
 import { MultiNationEconomyComparatorModal } from "./MultiNationEconomyComparatorModal";
+import { CharacterCodexHub } from "./character-codex/CharacterCodexHub";
+import { KingdomCodexHub } from "./kingdom-codex/KingdomCodexHub";
 import {
   AuthModal,
   ImportExportModal,
@@ -103,6 +107,8 @@ import {
 type MainSection =
   | "home"
   | "database"
+  | "characters"
+  | "kingdoms"
   | "omniverse"
   | "v4studio"
   | "chronicles"
@@ -519,6 +525,8 @@ export function CodexApp() {
   }> = [
     { id: "home", label: "Đại Sảnh", icon: LayoutDashboard },
     { id: "database", label: "Kho Hồ sơ", icon: BookOpen },
+    { id: "characters", label: "Character Codex", icon: Users },
+    { id: "kingdoms", label: "Kingdom Codex (360)", icon: Crown },
     { id: "v4studio", label: "Studio Thế Giới V4", icon: Layers },
     { id: "chronicles", label: "Phòng Đọc Truyện", icon: ScrollText },
     { id: "omniverse", label: "Power & Công cụ V3", icon: Sparkles },
@@ -1035,6 +1043,27 @@ export function CodexApp() {
               canEdit={canEdit}
               onOpenEntry={handleOpenEntry}
               onCreateRedLink={handleCreateRedLink}
+            />
+          ) : section === "characters" ? (
+            <CharacterCodexHub
+              workspaceId={activeWorkspaceId}
+              canEdit={canEdit}
+              onOpenNationEntry={(entryId) => handleOpenEntry(entryId)}
+            />
+          ) : section === "kingdoms" ? (
+            <KingdomCodexHub
+              workspaceId={activeWorkspaceId}
+              canEdit={canEdit}
+              onViewOnAtlas={(nationId) => {
+                setAtlasFocusNationId(nationId);
+                setSection("atlas");
+                setActiveEntryId(null);
+              }}
+              onOpenWikiEntry={(entryId) => handleOpenEntry(entryId)}
+              onOpenCharacter={() => {
+                setSection("characters");
+                setActiveEntryId(null);
+              }}
             />
           ) : section === "graph" ? (
             <KnowledgeGraphView workspaceId={activeWorkspaceId} entries={entries} onOpenEntry={handleOpenEntry} />
