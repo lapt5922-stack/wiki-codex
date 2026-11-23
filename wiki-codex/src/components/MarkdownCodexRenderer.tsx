@@ -464,7 +464,7 @@ export function MarkdownCodexRenderer({
                 return (
                   <blockquote
                     key={lIdx}
-                    className="border-l-2 border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-2 rounded-r-lg italic text-sm"
+                    className="border-l-2 border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-2.5 rounded-r-xl font-display italic text-base leading-relaxed text-[var(--text-primary)]"
                   >
                     {renderInline(trimmed.slice(2))}
                   </blockquote>
@@ -472,7 +472,7 @@ export function MarkdownCodexRenderer({
               }
 
               return (
-                <p key={lIdx} className="text-[15px] leading-7">
+                <p key={lIdx} className="codex-prose text-[var(--text-primary)]/90">
                   {renderInline(trimmed)}
                 </p>
               );

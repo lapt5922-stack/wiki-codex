@@ -1,38 +1,57 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-display: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  --font-display: "Cormorant Garamond", "Be Vietnam Pro", Georgia, serif;
   --font-serif-editorial: "Cormorant Garamond", Georgia, serif;
-  --font-sans: "Inter", "Be Vietnam Pro", system-ui, sans-serif;
+  --font-sans: "Be Vietnam Pro", "Inter", system-ui, Arial, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 }
 
 /* ============================================================================
-   AETHEL CODEX DESIGN SYSTEM — IMPERIAL FANTASY · ARCANE ATLAS · MYTHIC EDITORIAL
-   Midnight Navy (#101522) · Royal Slate (#1D2636) · Antique Gold (#C6A568)
-   Ivory (#E9DFC9) · Arcane Blue (#657D91) · Royal Burgundy (#6D3D49)
+   AETHEL CODEX DESIGN SYSTEM — IMPERIAL FANTASY LIBRARY × DIGITAL ENCYCLOPEDIA
+   Midnight Navy (#101522) · Royal Slate (#1D2636) · Deep Obsidian (#111318)
+   Antique Gold (#C6A568) · Warm Ivory (#E9DFC9) · Arcane Blue (#657D91)
+   Royal Burgundy (#6D3D49) · Soft Silver (#AEB7C4)
    ============================================================================ */
 
 :root,
 [data-theme="astral-grimoire"] {
   --bg-base: #101522;
+  --bg-obsidian: #111318;
   --bg-surface: rgba(23, 31, 46, 0.92);
   --bg-elevated: rgba(29, 38, 54, 0.97);
   --bg-card: rgba(25, 34, 50, 0.88);
-  --border-subtle: rgba(198, 165, 104, 0.22);
-  --border-strong: rgba(198, 165, 104, 0.52);
+  --border-subtle: rgba(174, 183, 196, 0.16);
+  --border-strong: rgba(198, 165, 104, 0.44);
   --text-primary: #E9DFC9;
   --text-secondary: #C8D0DC;
-  --text-muted: #8FA2B3;
+  --text-muted: #AEB7C4;
   --accent: #C6A568;
-  --accent-soft: rgba(198, 165, 104, 0.16);
+  --accent-soft: rgba(198, 165, 104, 0.14);
   --accent-2: #657D91;
   --royal-burgundy: #6D3D49;
   --royal-slate: #1D2636;
-  --glow-1: rgba(198, 165, 104, 0.14);
-  --glow-2: rgba(109, 61, 73, 0.16);
+  --glow-1: rgba(198, 165, 104, 0.11);
+  --glow-2: rgba(109, 61, 73, 0.14);
   --danger: #e06c75;
   --success: #52b788;
+  /* Unified Vietnamese Typography Scale */
+  --codex-body-size: 0.9375rem;
+  --codex-line-height: 1.7;
+}
+
+/* User Reading Preferences (per-browser, non-intrusive) */
+html[data-font-size="sm"] {
+  --codex-body-size: 0.84375rem;
+}
+html[data-font-size="lg"] {
+  --codex-body-size: 1.0625rem;
+}
+html[data-density="compact"] .codex-prose p {
+  margin-bottom: 0.6rem;
+}
+html[data-density="comfortable"] .codex-prose p {
+  margin-bottom: 1.05rem;
 }
 
 [data-theme="velvet-eclipse"] {
@@ -173,6 +192,14 @@ body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
+  font-family: var(--font-sans);
+  font-feature-settings: "kern" 1, "liga" 1;
+  text-rendering: optimizeLegibility;
+}
+
+.codex-prose {
+  font-size: var(--codex-body-size);
+  line-height: var(--codex-line-height);
 }
 
 body {

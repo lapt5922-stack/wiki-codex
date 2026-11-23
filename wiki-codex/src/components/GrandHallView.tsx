@@ -58,6 +58,35 @@ export function GrandHallView({
   const [featuredKingdoms, setFeaturedKingdoms] = useState<KingdomListProjection[]>([]);
   const [legendaryChars, setLegendaryChars] = useState<CharacterListProjection[]>([]);
   const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
+  const [showLayoutControls, setShowLayoutControls] = useState(false);
+  const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({
+    compendium: true,
+    world: true,
+    kingdoms: true,
+    characters: true,
+    archives: true
+  });
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(`aethel_grandhall_layout_${workspace.id}`);
+      if (saved) setVisibleSections((prev) => ({ ...prev, ...JSON.parse(saved) }));
+    } catch {
+      // ignore
+    }
+  }, [workspace.id]);
+
+  function toggleSection(key: string) {
+    setVisibleSections((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        window.localStorage.setItem(`aethel_grandhall_layout_${workspace.id}`, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     let alive = true;
@@ -165,13 +194,151 @@ export function GrandHallView({
               <Library className="w-4 h-4 text-[#C6A568]" />
               <span>Mở Thư viện 14 Phân hệ Codex</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowLayoutControls((v) => !v)}
+              className="min-h-[46px] px-4 py-2.5 rounded-xl bg-[#101522]/70 hover:bg-[#1D2636] border border-[#AEB7C4]/25 text-[#AEB7C4] hover:text-[#E9DFC9] text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#C6A568]" />
+              <span>Tùy chỉnh Đại Sảnh</span>
+            </button>
           </div>
+
+          {showLayoutControls && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10 text-xs">
+              <span className="text-[#AEB7C4]">Hiển thị khu vực:</span>
+              {(
+                [
+                  ["compendium", "Bách khoa Danh mục"],
+                  ["world", "Đại Bản Đồ"],
+                  ["kingdoms", "Vương quốc Nổi bật"],
+                  ["characters", "Nhân vật Huyền thoại"],
+                  ["archives", "Biên niên sử & Lưu trữ"]
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleSection(key)}
+                  className={`px-2.5 py-1 rounded-lg border cursor-pointer transition ${
+                    visibleSections[key]
+                      ? "border-[#C6A568] bg-[#C6A568]/20 text-[#E9DFC9] font-semibold"
+                      : "border-white/15 text-[#AEB7C4]/60 line-through"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       {/* =====================================================================
+          1B. COMPENDIUM CATEGORY BANNERS & RECENT ARTICLES RAIL (Ref Image 3)
+          ===================================================================== */}
+      {visibleSections.compendium && (
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="lg:col-span-8 space-y-3">
+            <div className="flex items-end justify-between gap-2">
+              <div>
+                <div className="editorial-kicker">Compendium · Mục lục Đại Thư Viện</div>
+                <h2 className="font-display text-xl sm:text-2xl font-bold text-[#E9DFC9] mt-0.5">
+                  Khám phá theo Phân hệ Tri thức
+                </h2>
+              </div>
+              <span className="text-xs text-[#AEB7C4] font-mono">{totalEntries} hồ sơ thực tế</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { id: "kingdoms", title: "Quốc gia & Chính thể", meta: "360 Quốc gia · 8 Lục địa", art: "/art/kingdom-editorial-cover.svg", accent: "from-[#6D3D49]/65" },
+                { id: "characters", title: "Nhân vật & Dòng tộc", meta: `${legendaryChars.length || "Hồ sơ"} Nhân vật & Phả hệ`, art: "/art/character-portrait-bg.svg", accent: "from-[#1D2636]/80" },
+                { id: "atlas", title: "Địa lý & Đại Bản Đồ", meta: "Atlas 2D/3D · 8 Lớp Bản đồ", art: "/art/featured-world-atlas.svg", accent: "from-[#1B3B6F]/70" },
+                { id: "heraldry", title: "Xưởng Huy hiệu & Cờ hiệu", meta: "2.400+ Mẫu · 450+ Quốc kỳ", art: "/art/grand-hall-hero.svg", accent: "from-[#5B2C6F]/60" },
+                { id: "archives", title: "Tư liệu Lịch sử & Góc nhìn", meta: "11 Loại Tư liệu · Đa góc nhìn", art: "/art/grand-hall-hero.svg", accent: "from-[#101522]/85" },
+                { id: "timeline", title: "Dòng thời gian & Biên niên sử", meta: `${historicalEvents.length || 0}+ Mốc sự kiện lịch sử`, art: "/art/featured-world-atlas.svg", accent: "from-[#141821]/85" },
+                { id: "graph", title: "Mạng lưới Tri thức (Graph)", meta: "Quan hệ đa chiều & Xác minh", art: "/art/featured-world-atlas.svg", accent: "from-[#1B6B4A]/55" },
+                { id: "database", title: "14 Phân hệ Bách khoa", meta: `${categoryCount} Danh mục · ${entryTypeCount} Loại thực thể`, art: "/art/kingdom-editorial-cover.svg", accent: "from-[#8C6239]/55" }
+              ].map((card) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => onNavigate(card.id)}
+                  className="group relative h-24 rounded-2xl overflow-hidden border border-[#AEB7C4]/18 hover:border-[#C6A568]/70 text-left transition-all cursor-pointer shadow-md"
+                >
+                  <img
+                    src={card.art}
+                    alt={card.title}
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:scale-105 group-hover:opacity-50 transition-all duration-500"
+                  />
+                  <div className={`absolute inset-0 bg-gradient-to-r ${card.accent} via-[#101522]/80 to-[#101522]/55`} />
+                  <div className="relative z-10 h-full px-4 flex flex-col justify-center">
+                    <div className="font-semibold text-sm sm:text-base text-[#E9DFC9] group-hover:text-[#C6A568] transition">
+                      {card.title}
+                    </div>
+                    <div className="text-[11px] text-[#AEB7C4] mt-0.5">{card.meta}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Right Rail: Recent Articles & Quick Tools */}
+          <div className="lg:col-span-4 space-y-3">
+            <div className="rounded-2xl border border-[#AEB7C4]/18 bg-[#1D2636]/75 p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#C6A568]">
+                  Cập nhật Gần đây
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("database")}
+                  className="text-[11px] text-[#657D91] hover:text-[#C6A568] cursor-pointer"
+                >
+                  Xem tất cả
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {recentlyUpdated.slice(0, 5).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onOpenEntry(item.id)}
+                    className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 hover:bg-white/5 text-left transition cursor-pointer"
+                  >
+                    <span className="text-base shrink-0">{item.sigil || "✦"}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-[#E9DFC9] truncate">{item.title}</div>
+                      <div className="text-[10px] text-[#AEB7C4] truncate">
+                        {item.subtitle || "Hồ sơ Bách khoa"} · {new Date(item.updatedAt).toLocaleDateString("vi-VN")}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#AEB7C4]/18 bg-[#1D2636]/75 p-4 space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#C6A568]">
+                Lối tắt Nghiên cứu
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-xs">
+                <button type="button" onClick={() => onNavigate("collections")} className="px-2.5 py-2 rounded-xl border border-white/10 bg-[#101522]/70 text-[#E9DFC9] hover:border-[#C6A568] text-left cursor-pointer">Tuyển tập & Từ điển</button>
+                <button type="button" onClick={() => onNavigate("conlang")} className="px-2.5 py-2 rounded-xl border border-white/10 bg-[#101522]/70 text-[#E9DFC9] hover:border-[#C6A568] text-left cursor-pointer">Ngôn ngữ Cổ ngữ</button>
+                <button type="button" onClick={() => onNavigate("media")} className="px-2.5 py-2 rounded-xl border border-white/10 bg-[#101522]/70 text-[#E9DFC9] hover:border-[#C6A568] text-left cursor-pointer">Kho Ảnh Media</button>
+                <button type="button" onClick={() => onNavigate("health")} className="px-2.5 py-2 rounded-xl border border-white/10 bg-[#101522]/70 text-[#E9DFC9] hover:border-[#C6A568] text-left cursor-pointer">Quản trị & Health</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* =====================================================================
           2. FEATURED WORLD SHOWCASE — ARCANE ATLAS
           ===================================================================== */}
+      {visibleSections.world && (
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-2">
           <div>
@@ -225,11 +392,12 @@ export function GrandHallView({
           </div>
         </div>
       </section>
+      )}
 
       {/* =====================================================================
           3. FEATURED KINGDOMS — ASYMMETRIC EDITORIAL MASONRY GRID
           ===================================================================== */}
-      {featuredKingdoms.length > 0 && (
+      {visibleSections.kingdoms && featuredKingdoms.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-end justify-between gap-2">
             <div>

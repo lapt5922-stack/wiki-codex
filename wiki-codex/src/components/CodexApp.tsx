@@ -8,6 +8,8 @@ import {
   Bookmark,
   BookOpen,
   Calendar,
+  ChevronDown,
+  ChevronRight,
   Crown,
   Download,
   FolderKanban,
@@ -23,6 +25,7 @@ import {
   Maximize2,
   Menu,
   Minimize2,
+  MoreHorizontal,
   Network,
   Palette,
   PanelLeftClose,
@@ -34,6 +37,7 @@ import {
   Search,
   Settings2,
   Shield,
+  Shuffle,
   Sparkles,
   Star,
   StickyNote,
@@ -100,6 +104,7 @@ import { ChronicleReaderView } from "./ChronicleReaderView";
 import { BookPublisherModal } from "./BookPublisherModal";
 import { BatchCsvImportModal } from "./BatchCsvImportModal";
 import { DeviceUISwitcher, useDeviceUI } from "@/lib/device-ui";
+import { useReadingPreferences } from "@/lib/reading-preferences";
 import { ReadingBreadcrumbTrail, type TrailItem } from "./EntityVisualWidgets";
 import { MultiNationEconomyComparatorModal } from "./MultiNationEconomyComparatorModal";
 import { CharacterCodexHub } from "./character-codex/CharacterCodexHub";
@@ -574,6 +579,11 @@ export function CodexApp() {
   ];
 
   const { isMobile, isTablet, isDesktop, isManualOverride, resolved, setMode } = useDeviceUI();
+  const { prefs: readingPrefs, updatePrefs: updateReadingPrefs } = useReadingPreferences();
+  const [moreToolsOpen, setMoreToolsOpen] = useState(false);
+  const [collapsedNavGroups, setCollapsedNavGroups] = useState<Record<string, boolean>>({
+    admin: false
+  });
   const [readingTrail, setReadingTrail] = useState<TrailItem[]>([]);
   const [comparatorState, setComparatorState] = useState<{ open: boolean; initialId: string | null }>({
     open: false,
@@ -628,6 +638,75 @@ export function CodexApp() {
   }, []);
 
   const visibleNavItems = navItems.filter((item) => !item.editorOnly || canEdit);
+
+  const handleRandomDiscovery = useCallback(() => {
+    if (entries.length === 0) return;
+    const pool = entries.filter((e) => e.id !== activeEntryId);
+    const pick = (pool.length > 0 ? pool : entries)[Math.floor(Math.random() * (pool.length > 0 ? pool.length : entries.length))];
+    if (pick) handleOpenEntry(pick.id);
+  }, [entries, activeEntryId]);
+
+  const sidebarGroups: Array<{
+    id: string;
+    label: string;
+    items: Array<{
+      id: MainSection | "random" | "bookmarks_shortcut";
+      label: string;
+      icon: React.ComponentType<{ className?: string }>;
+      editorOnly?: boolean;
+    }>;
+  }> = [
+    {
+      id: "world",
+      label: "WORLD & EXPLORATION",
+      items: [
+        { id: "home", label: "Đại Sảnh Tri Thức", icon: LayoutDashboard },
+        { id: "atlas", label: "Bản đồ Thế giới (Atlas)", icon: MapIcon },
+        { id: "timeline", label: "Dòng thời gian Lịch sử", icon: Hourglass },
+        { id: "graph", label: "Mạng lưới Tri thức", icon: Network },
+        { id: "random", label: "Khám phá Ngẫu nhiên", icon: Shuffle }
+      ]
+    },
+    {
+      id: "encyclopedia",
+      label: "ENCYCLOPEDIA",
+      items: [
+        { id: "database", label: "14 Phân hệ Bách khoa", icon: Library },
+        { id: "kingdoms", label: "360 Quốc gia & Chính thể", icon: Crown },
+        { id: "characters", label: "Nhân vật & Dòng tộc", icon: Users },
+        { id: "chronicles", label: "Biên niên sử & Gia phả", icon: BookOpen },
+        { id: "conlang", label: "Ngôn ngữ & Cổ ngữ", icon: Languages }
+      ]
+    },
+    {
+      id: "archive",
+      label: "KNOWLEDGE ARCHIVE",
+      items: [
+        { id: "archives", label: "Tư liệu & Góc nhìn", icon: Archive },
+        { id: "heraldry", label: "Xưởng Huy hiệu Hoàng gia", icon: Shield },
+        { id: "media", label: "Kho Ảnh & Media Vault", icon: ImageIcon },
+        { id: "calendar", label: "Lịch Đa Trăng", icon: Calendar },
+        { id: "loreboard", label: "Bảng Ghim Loreboard", icon: StickyNote }
+      ]
+    },
+    {
+      id: "personal",
+      label: "PERSONAL LIBRARY",
+      items: [
+        { id: "collections", label: "Tuyển tập & Từ điển", icon: FolderKanban },
+        { id: "bookmarks_shortcut", label: "Đã ghim & Yêu thích", icon: Bookmark }
+      ]
+    },
+    {
+      id: "admin",
+      label: "ADMINISTRATION",
+      items: [
+        { id: "health", label: "Quản trị & Data Health", icon: Activity },
+        { id: "v4studio", label: "Studio Thế giới", icon: Sparkles },
+        { id: "trash", label: "Thùng rác", icon: Trash2, editorOnly: true }
+      ]
+    }
+  ];
 
   // Feature #5: Track last 8 visited entries in Reading Breadcrumb Trail
   useEffect(() => {
@@ -750,141 +829,216 @@ export function CodexApp() {
             <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/10">Ctrl K</kbd>
           </button>
 
-          {/* Right Controls */}
-          <div className="flex items-center gap-1.5">
-            <DeviceUISwitcher compact={isMobile} />
-            {activeWorkspace && (
-              <button
-                type="button"
-                onClick={() => setPublishModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[#090e1c] font-semibold text-xs hover:brightness-110 transition cursor-pointer shadow-md shadow-[var(--accent)]/20"
-              >
-                <Rocket className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">1-Click Push</span>
-              </button>
-            )}
-
-            {canEdit && (
-              <button
-                type="button"
-                title="Quản lý 10+ Loại Thực thể & Trường động"
-                onClick={() => setTypeModalOpen(true)}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
-              >
-                <Layers className="w-3.5 h-3.5 text-[var(--accent)]" />
-                <span className="hidden xl:inline">Loại thực thể</span>
-              </button>
-            )}
-
-            {canEdit && (
-              <button
-                type="button"
-                title="Nhập hàng loạt hồ sơ thực thể từ CSV"
-                onClick={() => setBatchCsvOpen(true)}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-xs text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Nhập CSV</span>
-              </button>
-            )}
-
+          {/* Right Controls — Clean Primary Actions + More Tools Dropdown */}
+          <div className="flex items-center gap-1.5 relative">
             <button
               type="button"
-              title="Xuất bản Sách Bách Khoa In Ấn / PDF V4.0"
-              onClick={() => setBookPublisherOpen(true)}
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+              onClick={() => setCmdOpen(true)}
+              title="Tìm kiếm toàn cục (Ctrl+K)"
+              className="md:hidden p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--accent)] cursor-pointer"
+              aria-label="Tìm kiếm toàn cục"
             >
-              <Printer className="w-3.5 h-3.5 text-[var(--accent)]" />
-              <span className="hidden xl:inline">Xuất Sách PDF</span>
+              <Search className="w-4 h-4" />
             </button>
-
-            <button type="button" title="Xuất / Nhập dữ liệu" onClick={() => setImportExportOpen(true)} className="p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer">
-              <Download className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={togglePerfMode}
-              title={
-                perfMode === "vivid"
-                  ? "Đang bật Giao diện Sống động 60 FPS — bấm để chuyển Chế độ Siêu nhẹ tiết kiệm pin"
-                  : "Đang bật Chế độ Siêu nhẹ — bấm để bật lại Giao diện Sống động"
-              }
-              className={`codex-press hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer ${
-                perfMode === "vivid"
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">{perfMode === "vivid" ? "Sống động" : "Siêu nhẹ"}</span>
-            </button>
-
-            <button type="button" title="Phím tắt (?)" onClick={() => setShortcutsOpen(true)} className="hidden md:flex p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer">
-              <Keyboard className="w-3.5 h-3.5" />
-            </button>
-
-            {/* 6 Fantasy Themes */}
-            <div className="relative group">
-              <button type="button" title="6 Giao diện Huyền ảo (Theme)" className="p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--accent)] hover:border-[var(--accent)] cursor-pointer">
-                <Palette className="w-3.5 h-3.5" />
-              </button>
-              <div className="hidden group-hover:block absolute right-0 top-full pt-1.5 z-40">
-                <div className="w-52 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-1.5 shadow-2xl space-y-1">
-                  {THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => applyTheme(t.id)}
-                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer ${
-                        theme === t.id
-                          ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium"
-                          : "text-[var(--text-secondary)] hover:bg-white/5"
-                      }`}
-                    >
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: t.dot }} />
-                      <span>{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
 
             {canEdit && (
               <button
                 type="button"
                 onClick={() => setUnifiedCreateOpen(true)}
                 title="Tạo hồ sơ mới trong 14 phân hệ Codex"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs hover:brightness-110 cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs hover:brightness-110 cursor-pointer shrink-0 shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Tạo Hồ sơ</span>
+                <span className="hidden sm:inline">Tạo Hồ sơ</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setBookmarksOpen(true)}
-              title="Hồ sơ Đã Ghim (Bookmarks)"
-              className="p-2 rounded-xl border border-[var(--border-subtle)] text-amber-300 hover:border-[var(--accent)] cursor-pointer"
+              title="Hồ sơ Đã Ghim & Yêu thích"
+              className="p-2 rounded-xl border border-[var(--border-subtle)] text-[var(--accent)] hover:border-[var(--accent)] cursor-pointer"
+              aria-label="Hồ sơ Đã Ghim"
             >
               <Star className="w-3.5 h-3.5" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => setFocusReaderMode((v) => !v)}
-              title="Chế độ Đọc Tập trung (Phím F)"
-              className={`hidden sm:inline-flex p-2 rounded-xl border cursor-pointer ${
-                focusReaderMode
-                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--accent)]"
-              }`}
-            >
-              {focusReaderMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            </button>
+            {/* Secondary & Admin Tools Popover (Works smoothly on Desktop, Tablet & Touch) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMoreToolsOpen((v) => !v)}
+                title="Công cụ khác, Cài đặt Đọc & Quản trị"
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer transition ${
+                  moreToolsOpen
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)]"
+                }`}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+                <span className="hidden lg:inline">Công cụ</span>
+              </button>
 
-            <button type="button" onClick={() => setAuthModalOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-xs hover:border-[var(--accent)] cursor-pointer">
+              {moreToolsOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setMoreToolsOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 z-40 w-72 sm:w-80 rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-3 shadow-2xl space-y-3 text-xs">
+                    {/* Reading Preferences (Font size, Density, Layout Width) */}
+                    <div className="space-y-2 pb-2.5 border-b border-[var(--border-subtle)]">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                        Trải nghiệm Đọc (Cá nhân)
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[var(--text-secondary)]">Cỡ chữ</span>
+                        <div className="flex gap-1">
+                          {(["sm", "md", "lg"] as const).map((sz) => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => updateReadingPrefs({ fontSize: sz })}
+                              className={`px-2 py-0.5 rounded-md border text-[11px] cursor-pointer ${
+                                readingPrefs.fontSize === sz
+                                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-bold"
+                                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+                              }`}
+                            >
+                              {sz === "sm" ? "Nhỏ" : sz === "md" ? "Chuẩn" : "Lớn"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[var(--text-secondary)]">Bố cục & Mật độ</span>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateReadingPrefs({
+                                layoutWidth: readingPrefs.layoutWidth === "wide" ? "focused" : "wide"
+                              })
+                            }
+                            className="px-2 py-0.5 rounded-md border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                          >
+                            {readingPrefs.layoutWidth === "wide" ? "Rộng" : "Tập trung"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateReadingPrefs({
+                                density: readingPrefs.density === "comfortable" ? "compact" : "comfortable"
+                              })
+                            }
+                            className="px-2 py-0.5 rounded-md border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                          >
+                            {readingPrefs.density === "comfortable" ? "Thoáng" : "Gọn"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Secondary & Admin Actions */}
+                    <div className="grid grid-cols-2 gap-1.5 pb-2.5 border-b border-[var(--border-subtle)]">
+                      {activeWorkspace && (
+                        <button
+                          type="button"
+                          onClick={() => { setMoreToolsOpen(false); setPublishModalOpen(true); }}
+                          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-[var(--accent-soft)] border border-[var(--border-strong)] text-[var(--accent)] font-semibold cursor-pointer"
+                        >
+                          <Rocket className="w-3.5 h-3.5" /> 1-Click Push
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setMoreToolsOpen(false); setBookPublisherOpen(true); }}
+                        className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-[var(--accent)]" /> Xuất Sách PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setMoreToolsOpen(false); setImportExportOpen(true); }}
+                        className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[var(--accent)]" /> Xuất / Nhập
+                      </button>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => { setMoreToolsOpen(false); setBatchCsvOpen(true); }}
+                          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-emerald-300 hover:border-emerald-400 cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Nhập CSV
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => { setMoreToolsOpen(false); setTypeModalOpen(true); }}
+                          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                        >
+                          <Layers className="w-3.5 h-3.5 text-[var(--accent)]" /> Loại thực thể
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setMoreToolsOpen(false); setFocusReaderMode((v) => !v); }}
+                        className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                      >
+                        {focusReaderMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                        {focusReaderMode ? "Thoát Tập trung" : "Đọc Tập trung"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={togglePerfMode}
+                        className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                        {perfMode === "vivid" ? "Sống động" : "Siêu nhẹ"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setMoreToolsOpen(false); setShortcutsOpen(true); }}
+                        className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)] cursor-pointer"
+                      >
+                        <Keyboard className="w-3.5 h-3.5 text-[var(--accent)]" /> Phím tắt (?)
+                      </button>
+                    </div>
+
+                    {/* Device Switcher & Theme Picker */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                          Giao diện & Thiết bị
+                        </span>
+                        <DeviceUISwitcher compact />
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {THEMES.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => applyTheme(t.id)}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] cursor-pointer ${
+                              theme === t.id
+                                ? "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                                : "text-[var(--text-secondary)] hover:bg-white/5"
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.dot }} />
+                            <span className="truncate">{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button type="button" onClick={() => setAuthModalOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-xs hover:border-[var(--accent)] cursor-pointer shrink-0">
               <Shield className="w-3.5 h-3.5 text-[var(--accent)]" />
               <span className="hidden sm:inline font-mono uppercase text-[11px]">{user.role}</span>
             </button>
@@ -900,30 +1054,63 @@ export function CodexApp() {
             sidebarCollapsed || isTablet ? "w-16" : "w-72"
           }`}
         >
-          <nav className="codex-card rounded-2xl p-1.5 space-y-0.5 overflow-y-auto codex-scrollbar">
-            {visibleNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = section === item.id && !activeEntryId;
+          <nav className="codex-card rounded-2xl p-2 space-y-2.5 overflow-y-auto codex-scrollbar max-h-[58vh]">
+            {sidebarGroups.map((grp) => {
+              const items = grp.items.filter((i) => !i.editorOnly || canEdit);
+              const isCollapsed = Boolean(collapsedNavGroups[grp.id]);
               return (
-                <button
-                  key={item.id}
-                  type="button"
-                  title={item.label}
-                  onClick={() => {
-                    setSection(item.id);
-                    setActiveEntryId(null);
-                  }}
-                  className={`w-full flex items-center gap-2.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                    sidebarCollapsed ? "justify-center p-2.5" : "px-3 py-2"
-                  } ${
-                    active
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-strong)]"
-                      : "text-[var(--text-secondary)] hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-                </button>
+                <div key={grp.id} className="space-y-0.5">
+                  {!sidebarCollapsed && !isTablet && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCollapsedNavGroups((prev) => ({ ...prev, [grp.id]: !prev[grp.id] }))
+                      }
+                      className="w-full flex items-center justify-between px-2 py-1 text-[10px] font-bold tracking-[0.12em] uppercase text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer"
+                    >
+                      <span>{grp.label}</span>
+                      {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  )}
+                  {(!isCollapsed || sidebarCollapsed || isTablet) &&
+                    items.map((item) => {
+                      const Icon = item.icon;
+                      const active =
+                        item.id !== "random" &&
+                        item.id !== "bookmarks_shortcut" &&
+                        section === item.id &&
+                        !activeEntryId;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          title={item.label}
+                          onClick={() => {
+                            if (item.id === "random") {
+                              handleRandomDiscovery();
+                            } else if (item.id === "bookmarks_shortcut") {
+                              setBookmarksOpen(true);
+                            } else {
+                              setSection(item.id);
+                              setActiveEntryId(null);
+                            }
+                          }}
+                          className={`w-full flex items-center gap-2.5 rounded-xl text-xs font-medium transition cursor-pointer ${
+                            sidebarCollapsed || isTablet ? "justify-center p-2.5" : "px-2.5 py-1.5"
+                          } ${
+                            active
+                              ? "bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-strong)]"
+                              : "text-[var(--text-secondary)] hover:bg-white/5 border border-transparent"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          {!sidebarCollapsed && !isTablet && (
+                            <span className="truncate">{item.label}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
               );
             })}
           </nav>
@@ -968,7 +1155,11 @@ export function CodexApp() {
         </aside>
 
         {/* Main Content Canvas */}
-        <main className="flex-1 min-w-0 space-y-3">
+        <main
+          className={`flex-1 min-w-0 space-y-3 ${
+            readingPrefs.layoutWidth === "focused" ? "max-w-[960px] mx-auto" : ""
+          }`}
+        >
           {/* Desktop Multi-Tab Codex Reading Bar */}
           {openTabs.length > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto pb-1 no-print">

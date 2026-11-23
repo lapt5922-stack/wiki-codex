@@ -53,6 +53,9 @@ export function TimelineView({
   const [eraFilter, setEraFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareEraA, setCompareEraA] = useState("");
+  const [compareEraB, setCompareEraB] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TimelineEvent | null>(null);
@@ -236,16 +239,79 @@ export function TimelineView({
               Theo dõi sự kiện theo trình tự thời gian đầy đủ Nguyên nhân → Diễn biến → Kết quả → Ảnh hưởng &amp; Nguồn tham khảo.
             </p>
           </div>
-          {canEdit && (
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={openCreate}
-              className="min-h-[38px] px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+              onClick={() => {
+                setCompareMode((v) => !v);
+                if (!compareEraA && eras[0]) setCompareEraA(eras[0]);
+                if (!compareEraB && (eras[1] || eras[0])) setCompareEraB(eras[1] || eras[0]);
+              }}
+              className={`min-h-[38px] px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer ${
+                compareMode
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent)]"
+              }`}
             >
-              <Plus className="w-4 h-4" /> Thêm Sự kiện Lịch sử
+              {compareMode ? "Đóng So sánh Mốc" : "So sánh 2 Thời đại"}
             </button>
-          )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={openCreate}
+                className="min-h-[38px] px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Thêm Sự kiện Lịch sử
+              </button>
+            )}
+          </div>
         </div>
+
+        {compareMode && eras.length > 0 && (
+          <div className="rounded-xl border border-[var(--border-strong)] bg-[#101522]/85 p-3.5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-[var(--accent)]">Đối chiếu 2 Mốc Thời đại Song song</span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={compareEraA}
+                  onChange={(e) => setCompareEraA(e.target.value)}
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs"
+                >
+                  {eras.map((er) => <option key={er} value={er}>{er}</option>)}
+                </select>
+                <span className="text-[var(--accent)] font-bold">vs</span>
+                <select
+                  value={compareEraB}
+                  onChange={(e) => setCompareEraB(e.target.value)}
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs"
+                >
+                  {eras.map((er) => <option key={er} value={er}>{er}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[compareEraA, compareEraB].map((er, idx) => {
+                const list = events.filter((ev) => ev.era === er);
+                return (
+                  <div key={`${er}-${idx}`} className="rounded-xl border border-white/10 bg-[#1D2636]/55 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-[#E9DFC9]">
+                      <span>{er || "Chưa chọn"}</span>
+                      <span className="font-mono text-[11px] text-[#C6A568]">{list.length} sự kiện</span>
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto codex-scrollbar pr-1">
+                      {list.map((ev) => (
+                        <div key={ev.id} className="rounded-lg bg-[#101522]/80 px-2.5 py-1.5 text-xs">
+                          <div className="font-semibold text-[#E9DFC9]">{ev.dateLabel} — {ev.title}</div>
+                          <div className="text-[11px] text-[#AEB7C4] line-clamp-2">{ev.summary || ev.outcomes}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Search & Type Filter */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">

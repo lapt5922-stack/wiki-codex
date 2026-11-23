@@ -69,6 +69,22 @@ export function AtlasView({
   const [activeWorldLayers, setActiveWorldLayers] = useState<Set<string>>(
     () => new Set(["political", "terrain", "location"])
   );
+  const [selectedAtlasEra, setSelectedAtlasEra] = useState<string>("all");
+  const [eraEvents, setEraEvents] = useState<Array<{ id: string; title: string; era: string; dateLabel: string }>>([]);
+
+  useEffect(() => {
+    fetch(`/api/timeline?workspaceId=${encodeURIComponent(workspaceId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.events)) setEraEvents(d.events);
+      })
+      .catch(() => {});
+  }, [workspaceId]);
+
+  const atlasEras = useMemo(
+    () => Array.from(new Set(eraEvents.map((e) => e.era).filter(Boolean))),
+    [eraEvents]
+  );
   const [showRoutes, setShowRoutes] = useState(true);
   const [mode, setMode] = useState<"view" | "add_pin" | "ruler" | "draw_route">("view");
   const [rulerPoints, setRulerPoints] = useState<Array<{ xPercent: number; yPercent: number }>>([]);
@@ -267,6 +283,57 @@ export function AtlasView({
             : "Tải bản đồ riêng, gắn ghim liên kết bài viết và vẽ hành trình trong Workspace."}
         </span>
       </div>
+
+      {/* Interactive Era Timeline Scrubber (Inspired by World History Atlas Ref Image 4) */}
+      {atlasEras.length > 0 && (
+        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[#101522]/85 px-3 py-2 space-y-2">
+          <div className="flex items-center gap-2 overflow-x-auto text-[11px]">
+            <span className="text-[var(--accent)] shrink-0 font-mono uppercase text-[10px] font-bold">
+              ✦ Dòng Thời đại Atlas:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedAtlasEra("all")}
+              className={`shrink-0 px-2.5 py-1 rounded-lg border cursor-pointer ${
+                selectedAtlasEra === "all"
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                  : "border-white/10 text-[var(--text-secondary)]"
+              }`}
+            >
+              Mọi kỷ nguyên ({eraEvents.length})
+            </button>
+            {atlasEras.map((er) => (
+              <button
+                key={er}
+                type="button"
+                onClick={() => setSelectedAtlasEra(er)}
+                className={`shrink-0 px-2.5 py-1 rounded-lg border cursor-pointer ${
+                  selectedAtlasEra === er
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                    : "border-white/10 text-[var(--text-secondary)] hover:border-[var(--accent)]/50"
+                }`}
+              >
+                {er} ({eraEvents.filter((e) => e.era === er).length})
+              </button>
+            ))}
+          </div>
+          {selectedAtlasEra !== "all" && (
+            <div className="flex items-center gap-2 overflow-x-auto text-[11px] pt-1 border-t border-white/10">
+              {eraEvents
+                .filter((e) => e.era === selectedAtlasEra)
+                .slice(0, 6)
+                .map((ev) => (
+                  <span
+                    key={ev.id}
+                    className="shrink-0 px-2.5 py-1 rounded-lg bg-[#1D2636] border border-[var(--border-subtle)] text-[#E9DFC9]"
+                  >
+                    <strong className="text-[#C6A568]">{ev.dateLabel}</strong> · {ev.title}
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 8-Layer World Atlas Toggle Bar (Draggable & Touch-Swipeable) */}
       <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/80 px-3 py-2 flex items-center gap-2">
