@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="portraitBg" cx="50%" cy="35%" r="68%">
+      <stop offset="0%" stop-color="#352431"/>
+      <stop offset="48%" stop-color="#1D2636"/>
+      <stop offset="100%" stop-color="#101522"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="800" fill="url(#portraitBg)"/>
+  <!-- Imperial Frame -->
+  <g fill="none" stroke="#C6A568">
+    <rect x="24" y="24" width="552" height="752" rx="18" stroke-opacity="0.32" stroke-width="1.5"/>
+    <path d="M110 740 V260 Q300 95 490 260 V740" stroke-opacity="0.36" stroke-width="1.5"/>
+    <circle cx="300" cy="290" r="115" stroke-opacity="0.26" stroke-dasharray="4 7"/>
+    <circle cx="300" cy="290" r="78" stroke-opacity="0.42"/>
+  </g>
+  <!-- Subtle Crest Star -->
+  <polygon points="300,220 314,276 370,290 314,304 300,360 286,304 230,290 286,276" fill="#C6A568" fill-opacity="0.16" stroke="#C6A568" stroke-opacity="0.55"/>
+</svg>

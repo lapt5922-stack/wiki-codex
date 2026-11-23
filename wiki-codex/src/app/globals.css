@@ -1,33 +1,38 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-display: var(--font-display), "Playfair Display", Georgia, serif;
-  --font-sans: var(--font-sans), "Be Vietnam Pro", system-ui, sans-serif;
-  --font-mono: var(--font-mono), "JetBrains Mono", monospace;
+  --font-display: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  --font-serif-editorial: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Inter", "Be Vietnam Pro", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 /* ============================================================================
-   6 FANTASY ARCANE THEMES V2.0 (CSS Custom Properties — GPU-friendly, 60fps)
+   AETHEL CODEX DESIGN SYSTEM — IMPERIAL FANTASY · ARCANE ATLAS · MYTHIC EDITORIAL
+   Midnight Navy (#101522) · Royal Slate (#1D2636) · Antique Gold (#C6A568)
+   Ivory (#E9DFC9) · Arcane Blue (#657D91) · Royal Burgundy (#6D3D49)
    ============================================================================ */
 
 :root,
 [data-theme="astral-grimoire"] {
-  --bg-base: #080d1a;
-  --bg-surface: rgba(15, 22, 43, 0.88);
-  --bg-elevated: rgba(22, 32, 61, 0.95);
-  --bg-card: rgba(16, 24, 47, 0.8);
-  --border-subtle: rgba(212, 175, 55, 0.22);
-  --border-strong: rgba(212, 175, 55, 0.52);
-  --text-primary: #f5efdf;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --accent: #d4af37;
-  --accent-soft: rgba(212, 175, 55, 0.16);
-  --accent-2: #818cf8;
-  --glow-1: rgba(212, 175, 55, 0.14);
-  --glow-2: rgba(99, 102, 241, 0.15);
-  --danger: #fb7185;
-  --success: #34d399;
+  --bg-base: #101522;
+  --bg-surface: rgba(23, 31, 46, 0.92);
+  --bg-elevated: rgba(29, 38, 54, 0.97);
+  --bg-card: rgba(25, 34, 50, 0.88);
+  --border-subtle: rgba(198, 165, 104, 0.22);
+  --border-strong: rgba(198, 165, 104, 0.52);
+  --text-primary: #E9DFC9;
+  --text-secondary: #C8D0DC;
+  --text-muted: #8FA2B3;
+  --accent: #C6A568;
+  --accent-soft: rgba(198, 165, 104, 0.16);
+  --accent-2: #657D91;
+  --royal-burgundy: #6D3D49;
+  --royal-slate: #1D2636;
+  --glow-1: rgba(198, 165, 104, 0.14);
+  --glow-2: rgba(109, 61, 73, 0.16);
+  --danger: #e06c75;
+  --success: #52b788;
 }
 
 [data-theme="velvet-eclipse"] {
@@ -545,6 +550,59 @@ body {
   margin-right: auto;
   font-size: 1.05rem;
   line-height: 1.85;
+}
+
+/* ============================================================================
+   IMPERIAL FANTASY · ARCANE ATLAS · MYTHIC EDITORIAL UTILITIES
+   ============================================================================ */
+.imperial-surface {
+  background: linear-gradient(165deg, rgba(29, 38, 54, 0.94) 0%, rgba(16, 21, 34, 0.97) 100%);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 18px 42px -20px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(233, 223, 201, 0.06);
+}
+
+.imperial-card-hover {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease,
+    box-shadow 0.28s ease;
+}
+
+.imperial-card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(198, 165, 104, 0.62);
+  box-shadow: 0 16px 36px -14px rgba(198, 165, 104, 0.22), 0 0 0 1px rgba(198, 165, 104, 0.28);
+}
+
+.royal-seal-badge {
+  background: linear-gradient(135deg, rgba(109, 61, 73, 0.92), rgba(76, 39, 50, 0.96));
+  border: 1px solid rgba(198, 165, 104, 0.55);
+  color: #E9DFC9;
+  letter-spacing: 0.08em;
+}
+
+.editorial-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.editorial-rule {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(198, 165, 104, 0.65), rgba(101, 125, 145, 0.25), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .imperial-card-hover,
+  .codex-card-lift,
+  .animate-codex-fade-up,
+  .animate-codex-scale-in,
+  .animate-codex-sheet-up {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 @media print {

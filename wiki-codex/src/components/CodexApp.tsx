@@ -105,7 +105,6 @@ import { MultiNationEconomyComparatorModal } from "./MultiNationEconomyComparato
 import { CharacterCodexHub } from "./character-codex/CharacterCodexHub";
 import { KingdomCodexHub } from "./kingdom-codex/KingdomCodexHub";
 import { BookmarksDrawer } from "./BookmarksDrawer";
-import { WorldAnalyticsDashboard } from "./WorldAnalyticsDashboard";
 import { UnifiedCodexWorkspace, type UnifiedCodexTab } from "./UnifiedCodexWorkspace";
 import { UnifiedCreateDossierModal } from "./UnifiedCreateDossierModal";
 import { HistoricalPerspectiveArchiveView } from "./HistoricalPerspectiveArchiveView";
@@ -1023,27 +1022,7 @@ export function CodexApp() {
               />
             </div>
           ) : section === "home" && activeWorkspace ? (
-            <div className="space-y-4 animate-codex-fade-up">
-              <CategorySliderRibbon
-                categories={topLevelCategories}
-                categoryCounts={categoryCounts}
-                totalEntries={workspaceTotalEntries}
-                selectedCategoryId={selectedCategoryId || ""}
-                onSelectCategory={(cid) => handleSelectSidebarCategory(cid || null)}
-              />
-              <WorldAnalyticsDashboard
-                workspaceId={activeWorkspaceId}
-                totalEntries={workspaceTotalEntries}
-                mediaCount={mediaAssets.length}
-                onNavigate={(sec) => {
-                  if (sec === "characters") openUnifiedCodex("character");
-                  else if (sec === "kingdoms") openUnifiedCodex("kingdom");
-                  else {
-                    setSection(sec as MainSection);
-                    setActiveEntryId(null);
-                  }
-                }}
-              />
+            <div className="space-y-6 animate-codex-fade-up">
               <GrandHallView
                 workspace={activeWorkspace}
                 entries={entries}
@@ -1054,7 +1033,15 @@ export function CodexApp() {
                 activities={activityLog}
                 recentIds={recentIds}
                 onOpenEntry={handleOpenEntry}
-                onNavigate={(sec) => setSection(sec as MainSection)}
+                onOpenSearch={() => setCmdOpen(true)}
+                onNavigate={(sec) => {
+                  if (sec === "characters") openUnifiedCodex("character");
+                  else if (sec === "kingdoms") openUnifiedCodex("kingdom");
+                  else {
+                    setSection(sec as MainSection);
+                    setActiveEntryId(null);
+                  }
+                }}
               />
               <WorldPulseStatsView
                 workspaceId={activeWorkspaceId}

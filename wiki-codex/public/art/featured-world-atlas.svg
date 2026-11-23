@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="ocean" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1f2c40"/>
+      <stop offset="65%" stop-color="#141c2c"/>
+      <stop offset="100%" stop-color="#0d1320"/>
+    </radialGradient>
+    <linearGradient id="land" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#364257"/>
+      <stop offset="100%" stop-color="#222b3d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#ocean)"/>
+  <!-- Cartographic Rhumb Grid -->
+  <g stroke="#C6A568" stroke-opacity="0.14" stroke-width="1" fill="none">
+    <line x1="0" y1="135" x2="1200" y2="135"/><line x1="0" y1="270" x2="1200" y2="270"/>
+    <line x1="0" y1="405" x2="1200" y2="405"/><line x1="0" y1="540" x2="1200" y2="540"/>
+    <line x1="200" y1="0" x2="200" y2="675"/><line x1="400" y1="0" x2="400" y2="675"/>
+    <line x1="600" y1="0" x2="600" y2="675"/><line x1="800" y1="0" x2="800" y2="675"/>
+    <line x1="1000" y1="0" x2="1000" y2="675"/>
+    <circle cx="600" cy="338" r="240" stroke-dasharray="5 7"/>
+    <circle cx="600" cy="338" r="145" stroke-dasharray="2 6"/>
+  </g>
+  <!-- Stylized Continents -->
+  <g fill="url(#land)" stroke="#C6A568" stroke-opacity="0.58" stroke-width="1.8">
+    <path d="M120 175 L230 120 L365 145 L420 225 L360 315 L245 340 L145 275 Z"/>
+    <path d="M475 110 L650 95 L790 155 L830 275 L730 365 L565 345 L495 250 Z"/>
+    <path d="M880 185 L1020 150 L1110 240 L1065 385 L940 410 L860 300 Z"/>
+    <path d="M225 430 L385 415 L470 510 L395 595 L250 570 Z"/>
+    <path d="M620 445 L790 420 L880 520 L785 605 L635 565 Z"/>
+  </g>
+  <!-- Maritime Trade Routes -->
+  <g fill="none" stroke="#C6A568" stroke-opacity="0.55" stroke-width="1.5" stroke-dasharray="6 6">
+    <path d="M360 265 Q460 230 530 245"/>
+    <path d="M775 260 Q845 240 905 265"/>
+    <path d="M410 470 Q530 430 650 475"/>
+    <path d="M680 340 Q690 390 710 445"/>
+  </g>
+  <!-- Ornate Compass Rose -->
+  <g transform="translate(1055 545)" stroke="#C6A568" fill="none">
+    <circle r="54" stroke-opacity="0.45" stroke-width="1.2"/>
+    <circle r="44" stroke-opacity="0.28" stroke-dasharray="3 5"/>
+    <polygon points="0,-48 9,-9 48,0 9,9 0,48 -9,9 -48,0 -9,-9" fill="#C6A568" fill-opacity="0.22" stroke-opacity="0.85" stroke-width="1.2"/>
+    <circle r="5" fill="#E9DFC9"/>
+  </g>
+  <!-- Capital Beacons -->
+  <g fill="#E9DFC9" stroke="#C6A568" stroke-width="2">
+    <circle cx="285" cy="225" r="4.5"/><circle cx="645" cy="215" r="5.5"/>
+    <circle cx="975" cy="275" r="4.5"/><circle cx="345" cy="500" r="4"/>
+    <circle cx="745" cy="510" r="4.5"/>
+  </g>
+</svg>

@@ -3,9 +3,9 @@ import "./globals.css";
 import { DeviceUIProvider } from "@/lib/device-ui";
 
 export const metadata: Metadata = {
-  title: "Aethel Codex — Bách Khoa Tri Thức & Bản Đồ Đại Hành Tinh 360 Quốc Gia",
+  title: "Aethel Codex — Đại Thư Viện Bách Khoa & Bản Đồ Thế Giới Giả Tưởng",
   description:
-    "Hệ thống Web thuần Wiki Codex & Bách khoa tri thức đa không gian, bản đồ Đại Hành Tinh 360 quốc gia trên 8 lục địa, 6+ cổ ngữ, gia phả SVG, lịch đa mặt trăng và xuất bản sách PDF.",
+    "Nền tảng Bách khoa Tri thức & Worldbuilding chuẩn Imperial Fantasy · Arcane Atlas · Mythic Editorial: 14 phân hệ Codex, 360 quốc gia trên 8 lục địa, gia phả, biên niên sử và kho tư liệu lịch sử.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -17,7 +17,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#080d1a"
+  themeColor: "#101522"
 };
 
 export default function RootLayout({
@@ -36,10 +36,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,400&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Cinzel:wght@500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
-      <body className="font-sans antialiased overflow-x-hidden selection:bg-[var(--accent)]/30 selection:text-[var(--text-primary)]">
+      <body className="font-sans antialiased overflow-x-hidden selection:bg-[#C6A568]/30 selection:text-[#E9DFC9]">
         <DeviceUIProvider>{children}</DeviceUIProvider>
       </body>
     </html>

@@ -352,15 +352,25 @@ export function KingdomDetailView({
         </div>
       </div>
 
-      {/* Grand Strategy Hero Section */}
+      {/* Grand Strategy Hero Section — Imperial Editorial Banner */}
       <div
-        className="relative rounded-2xl border p-5 sm:p-6 overflow-hidden"
+        className="relative rounded-2xl border p-5 sm:p-7 overflow-hidden shadow-2xl"
         style={{
-          borderColor: `${accent}66`,
-          background: `radial-gradient(circle at 82% 22%, ${accent}24, transparent 58%), var(--bg-surface)`
+          borderColor: `${accent}66`
         }}
       >
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <img
+          src={dossier.symbols.coverImageUrl || dossier.symbols.capitalImageUrl || "/art/kingdom-editorial-cover.svg"}
+          alt={k.officialName}
+          className="absolute inset-0 w-full h-full object-cover opacity-45"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(125deg, rgba(16,21,34,0.92) 0%, rgba(29,38,54,0.78) 55%, rgba(16,21,34,0.88) 100%)`
+          }}
+        />
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <EntityEmblemSVG config={dossier.symbols.emblemConfig} sigil="⚜" size={isMobile ? 62 : 76} />
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
