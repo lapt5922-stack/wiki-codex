@@ -89,6 +89,62 @@ export const HERALDIC_SYMBOLS: HeraldicSymbolDef[] = [
     tags: ["kỳ lân", "unicorn", "thuần khiết"],
     svgInner: `<path d="M0 -42 L6 -16 L24 -10 L18 14 L26 36 L-18 36 L-24 10 L-12 -14 Z" fill="currentColor"/>`
   },
+  {
+    id: "sym-bear",
+    name: "Gấu Bắc Địa",
+    category: "animals",
+    tags: ["gấu", "bear", "sức mạnh", "phương bắc"],
+    svgInner: `<path d="M-26 -28 A8 8 0 1 1 -14 -24 L14 -24 A8 8 0 1 1 26 -28 L32 -4 L24 22 L12 36 L-12 36 L-24 22 L-32 -4 Z" fill="currentColor"/><circle cx="-10" cy="-6" r="3" fill="#101522"/><circle cx="10" cy="-6" r="3" fill="#101522"/><polygon points="-6,8 6,8 0,15" fill="#101522"/>`
+  },
+  {
+    id: "sym-horse",
+    name: "Chiến mã Hoàng gia",
+    category: "animals",
+    tags: ["ngựa", "chiến mã", "horse", "kỵ binh"],
+    svgInner: `<path d="M-12 -38 L8 -28 L26 -8 L16 6 L4 2 L16 36 L-22 36 L-26 6 L-18 -20 Z" fill="currentColor"/><circle cx="6" cy="-16" r="2.8" fill="#101522"/>`
+  },
+  {
+    id: "sym-serpent",
+    name: "Mãng xà Cổ đại",
+    category: "animals",
+    tags: ["rắn", "serpent", "trí tuệ", "bí ẩn"],
+    svgInner: `<path d="M0 -38 C24 -34 28 -14 6 -6 C-18 2 -20 22 4 28 C18 32 22 38 6 40 C-18 38 -30 20 -24 2 C-18 -14 8 -14 6 -24 C4 -30 -10 -28 -16 -22 L-22 -30 C-14 -38 -6 -38 0 -38 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-tiger",
+    name: "Mãnh hổ Vương triều",
+    category: "animals",
+    tags: ["hổ", "tiger", "quân đoàn"],
+    svgInner: `<path d="M-32 -24 L-16 -32 L-8 -20 L8 -20 L16 -32 L32 -24 L28 8 L14 34 L0 40 L-14 34 L-28 8 Z" fill="currentColor"/><path d="M-18 -6 L-6 -2 M18 -6 L6 -2 M-14 14 L0 20 L14 14" stroke="#101522" stroke-width="3.5" fill="none"/>`
+  },
+  {
+    id: "sym-raven",
+    name: "Quạ Đen Tiên tri",
+    category: "animals",
+    tags: ["quạ", "raven", "tiên tri", "bóng tối"],
+    svgInner: `<path d="M-4 -38 L10 -24 L42 -16 L24 2 L32 20 L8 14 L0 38 L-10 14 L-34 20 L-24 2 L-42 -16 L-14 -24 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-wyvern",
+    name: "Wyvern Hộ vệ",
+    category: "animals",
+    tags: ["wyvern", "rồng cánh", "thần thú"],
+    svgInner: `<path d="M-28 -36 L-8 -20 L14 -34 L40 -14 L20 6 L34 26 L8 18 L0 40 L-16 24 L-36 10 L-22 -8 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-boar",
+    name: "Lợn rừng Chiến trận",
+    category: "animals",
+    tags: ["boar", "dũng cảm", "quý tộc"],
+    svgInner: `<path d="M-34 10 L-24 -22 L0 -32 L24 -22 L34 10 L20 30 L0 36 L-20 30 Z" fill="currentColor"/><path d="M-24 16 Q-34 2 -28 -8 M24 16 Q34 2 28 -8" stroke="#101522" stroke-width="4" fill="none"/>`
+  },
+  {
+    id: "sym-falcon",
+    name: "Chim ưng Hoàng tộc",
+    category: "animals",
+    tags: ["chim ưng", "falcon", "tốc độ"],
+    svgInner: `<path d="M0 -40 L12 -18 L44 -22 L28 4 L12 12 L16 38 L0 26 L-16 38 L-12 12 L-28 4 L-44 -22 L-12 -18 Z" fill="currentColor"/>`
+  },
 
   // 2. ROYAL SYMBOLS
   {
@@ -132,6 +188,48 @@ export const HERALDIC_SYMBOLS: HeraldicSymbolDef[] = [
     category: "royal",
     tags: ["nguyệt quế", "laurel", "vinh quang"],
     svgInner: `<path d="M-12 34 C-36 20 -40 -12 -18 -34 C-26 -10 -22 14 -6 26 Z M12 34 C36 20 40 -12 18 -34 C26 -10 22 14 6 26 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-fleur-de-lis",
+    name: "Hoa Bách hợp (Fleur-de-lis)",
+    category: "royal",
+    tags: ["fleur-de-lis", "bách hợp", "hoàng tộc"],
+    svgInner: `<path d="M0 -42 C10 -24 12 -6 4 6 C14 -10 34 -12 32 6 C30 18 16 20 6 14 L10 36 L0 28 L-10 36 L-6 14 C-16 20 -30 18 -32 6 C-34 -12 -14 -10 -4 6 C-12 -6 -10 -24 0 -42 Z" fill="currentColor"/><rect x="-18" y="10" width="36" height="6" rx="2" fill="currentColor"/>`
+  },
+  {
+    id: "sym-globus-orb",
+    name: "Quả cầu Vương quyền (Globus)",
+    category: "royal",
+    tags: ["quả cầu", "orb", "đế chế"],
+    svgInner: `<g fill="currentColor"><circle cx="0" cy="10" r="24"/><rect x="-3" y="-38" width="6" height="28"/><rect x="-14" y="-28" width="28" height="6"/></g><path d="M-24 10 H24 M0 -14 V34" stroke="#101522" stroke-width="3" fill="none"/>`
+  },
+  {
+    id: "sym-throne",
+    name: "Ngai vàng Đế chế",
+    category: "royal",
+    tags: ["ngai vàng", "throne", "vương triều"],
+    svgInner: `<path d="M-24 -36 L-12 -22 L0 -40 L12 -22 L24 -36 V8 H34 V38 H22 V24 H-22 V38 H-34 V8 H-24 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-halberd",
+    name: "Kích Cấm vệ quân",
+    category: "royal",
+    tags: ["kích", "halberd", "cấm vệ"],
+    svgInner: `<g fill="currentColor"><rect x="-3" y="-40" width="6" height="80"/><path d="M3 -26 C26 -24 30 0 3 6 Z"/><polygon points="-3,-18 -24,-8 -3,0"/></g>`
+  },
+  {
+    id: "sym-shield-mini",
+    name: "Huy khiên Trung tâm (Escutcheon)",
+    category: "royal",
+    tags: ["khiên nhỏ", "escutcheon", "gia huy"],
+    svgInner: `<path d="M-26 -30 H26 V6 C26 24 0 38 0 38 C0 38 -26 24 -26 6 Z" fill="currentColor"/><path d="M0 -24 V30 M-20 -4 H20" stroke="#101522" stroke-width="3.5"/>`
+  },
+  {
+    id: "sym-diadem",
+    name: "Mũ miện Nữ hoàng",
+    category: "royal",
+    tags: ["mũ miện", "diadem", "hoàng hậu"],
+    svgInner: `<path d="M-36 18 Q0 -26 36 18 L30 28 Q0 16 -30 28 Z" fill="currentColor"/><circle cx="0" cy="-16" r="6" fill="currentColor"/><circle cx="-18" cy="-4" r="4" fill="currentColor"/><circle cx="18" cy="-4" r="4" fill="currentColor"/>`
   },
 
   // 3. NATURE & COSMOS
@@ -191,6 +289,48 @@ export const HERALDIC_SYMBOLS: HeraldicSymbolDef[] = [
     tags: ["hoa hồng", "rose", "quý tộc"],
     svgInner: `<g fill="currentColor"><circle cx="0" cy="-16" r="14"/><circle cx="15" cy="-5" r="14"/><circle cx="10" cy="14" r="14"/><circle cx="-10" cy="14" r="14"/><circle cx="-15" cy="-5" r="14"/><circle cx="0" cy="0" r="8" fill="#101522"/></g>`
   },
+  {
+    id: "sym-lotus",
+    name: "Liên hoa Thuần khiết",
+    category: "nature",
+    tags: ["hoa sen", "lotus", "tôn giáo", "phương đông"],
+    svgInner: `<g fill="currentColor"><path d="M0 -38 C12 -16 14 8 0 28 C-14 8 -12 -16 0 -38 Z"/><path d="M-8 24 C-30 14 -38 -6 -28 -22 C-14 -12 -6 4 -8 24 Z"/><path d="M8 24 C30 14 38 -6 28 -22 C14 -12 6 4 8 24 Z"/><rect x="-24" y="28" width="48" height="7" rx="3"/></g>`
+  },
+  {
+    id: "sym-oak-leaf",
+    name: "Lá Sồi Trường tồn",
+    category: "nature",
+    tags: ["lá sồi", "oak", "rừng", "bền vững"],
+    svgInner: `<path d="M0 -40 C16 -32 10 -18 24 -12 C28 0 14 8 20 20 C12 28 4 22 3 38 H-3 C-4 22 -12 28 -20 20 C-14 8 -28 0 -24 -12 C-10 -18 -16 -32 0 -40 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-lightning",
+    name: "Lôi điện Thiên uy",
+    category: "nature",
+    tags: ["sấm sét", "lightning", "bão"],
+    svgInner: `<polygon points="8,-42 -22,4 -2,4 -12,42 24,-6 4,-6" fill="currentColor"/>`
+  },
+  {
+    id: "sym-snowflake",
+    name: "Băng tinh Phương Bắc",
+    category: "nature",
+    tags: ["băng", "tuyết", "frost", "bắc cực"],
+    svgInner: `<g stroke="currentColor" stroke-width="5" stroke-linecap="round"><line x1="0" y1="-38" x2="0" y2="38"/><line x1="-33" y1="-19" x2="33" y2="19"/><line x1="-33" y1="19" x2="33" y2="-19"/><circle cx="0" cy="0" r="9" fill="currentColor"/></g>`
+  },
+  {
+    id: "sym-constellation",
+    name: "Chòm sao Thiên cầu",
+    category: "nature",
+    tags: ["chòm sao", "constellation", "thiên văn"],
+    svgInner: `<g stroke="currentColor" stroke-width="2.5" fill="currentColor"><line x1="-30" y1="-16" x2="-8" y2="-28"/><line x1="-8" y1="-28" x2="18" y2="-10"/><line x1="18" y1="-10" x2="30" y2="18"/><line x1="18" y1="-10" x2="-14" y2="24"/><circle cx="-30" cy="-16" r="5"/><circle cx="-8" cy="-28" r="6"/><circle cx="18" cy="-10" r="7"/><circle cx="30" cy="18" r="5"/><circle cx="-14" cy="24" r="6"/></g>`
+  },
+  {
+    id: "sym-wheat",
+    name: "Bông lúa Trù phú",
+    category: "nature",
+    tags: ["lúa", "wheat", "nông nghiệp", "thịnh vượng"],
+    svgInner: `<g fill="currentColor"><rect x="-2.5" y="-34" width="5" height="72"/><ellipse cx="-12" cy="-20" rx="8" ry="4" transform="rotate(-35 -12 -20)"/><ellipse cx="12" cy="-20" rx="8" ry="4" transform="rotate(35 12 -20)"/><ellipse cx="-14" cy="-4" rx="9" ry="4.5" transform="rotate(-35 -14 -4)"/><ellipse cx="14" cy="-4" rx="9" ry="4.5" transform="rotate(35 14 -4)"/><ellipse cx="-12" cy="12" rx="8" ry="4" transform="rotate(-35 -12 12)"/><ellipse cx="12" cy="12" rx="8" ry="4" transform="rotate(35 12 12)"/></g>`
+  },
 
   // 4. ARCANE & MYSTIC
   {
@@ -220,6 +360,48 @@ export const HERALDIC_SYMBOLS: HeraldicSymbolDef[] = [
     category: "arcane",
     tags: ["tinh thể", "crystal", "aether"],
     svgInner: `<polygon points="0,-42 24,-10 14,38 -14,38 -24,-10" fill="currentColor"/>`
+  },
+  {
+    id: "sym-astrolabe",
+    name: "Thiên cầu Nghi (Astrolabe)",
+    category: "arcane",
+    tags: ["astrolabe", "thiên văn", "ma pháp"],
+    svgInner: `<g fill="none" stroke="currentColor" stroke-width="3.5"><circle cx="0" cy="0" r="34"/><ellipse cx="0" cy="0" rx="34" ry="14" transform="rotate(35)"/><ellipse cx="0" cy="0" rx="34" ry="14" transform="rotate(-35)"/><circle cx="0" cy="0" r="7" fill="currentColor"/></g>`
+  },
+  {
+    id: "sym-hourglass",
+    name: "Đồng hồ Cát Thời gian",
+    category: "arcane",
+    tags: ["thời gian", "hourglass", "lịch sử"],
+    svgInner: `<g fill="currentColor"><rect x="-26" y="-38" width="52" height="7" rx="2"/><rect x="-26" y="31" width="52" height="7" rx="2"/><polygon points="-22,-31 22,-31 0,0"/><polygon points="-22,31 22,31 0,0"/></g>`
+  },
+  {
+    id: "sym-chalice",
+    name: "Chén Thánh Huyền bí",
+    category: "arcane",
+    tags: ["chén thánh", "chalice", "tôn giáo"],
+    svgInner: `<path d="M-26 -34 H26 C24 -8 12 2 4 6 V28 H18 V36 H-18 V28 H-4 V6 C-12 2 -24 -8 -26 -34 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-pentacle",
+    name: "Ngũ mang Tinh Ấn",
+    category: "arcane",
+    tags: ["ngũ mang tinh", "pentacle", "pháp thuật"],
+    svgInner: `<g fill="none" stroke="currentColor" stroke-width="3.5"><circle cx="0" cy="0" r="36"/><polygon points="0,-34 10,-6 34,-6 14,10 22,34 0,18 -22,34 -14,10 -34,-6 -10,-6"/></g>`
+  },
+  {
+    id: "sym-halo-cross",
+    name: "Thánh giá Hào quang",
+    category: "arcane",
+    tags: ["thánh giá", "tôn giáo", "giáo hội"],
+    svgInner: `<g fill="currentColor"><circle cx="0" cy="0" r="24" fill="none" stroke="currentColor" stroke-width="4"/><rect x="-6" y="-40" width="12" height="80" rx="2"/><rect x="-32" y="-12" width="64" height="12" rx="2"/></g>`
+  },
+  {
+    id: "sym-portal-gate",
+    name: "Cổng Không gian Cổ đại",
+    category: "arcane",
+    tags: ["cổng", "portal", "huyền bí"],
+    svgInner: `<g fill="none" stroke="currentColor" stroke-width="4"><path d="M-28 36 V-8 A28 28 0 0 1 28 -8 V36"/><path d="M-16 36 V-4 A16 16 0 0 1 16 -4 V36" stroke-dasharray="5 4"/><circle cx="0" cy="4" r="6" fill="currentColor"/></g>`
   },
 
   // 5. CIVILIZATION & ORGANIZATIONS
@@ -264,6 +446,48 @@ export const HERALDIC_SYMBOLS: HeraldicSymbolDef[] = [
     category: "civilization",
     tags: ["đuốc", "torch", "học viện"],
     svgInner: `<g fill="currentColor"><path d="M0 -42 C14 -24 16 -12 0 -4 C-16 -12 -14 -24 0 -42 Z"/><path d="M-14 0 H14 L8 38 H-8 Z"/></g>`
+  },
+  {
+    id: "sym-anchor",
+    name: "Mỏ neo Hải quân",
+    category: "civilization",
+    tags: ["mỏ neo", "anchor", "hải quân", "thương cảng"],
+    svgInner: `<g fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"><circle cx="0" cy="-28" r="8"/><line x1="0" y1="-20" x2="0" y2="34"/><line x1="-18" y1="-8" x2="18" y2="-8"/><path d="M-30 14 C-26 32 -12 36 0 36 C12 36 26 32 30 14"/></g>`
+  },
+  {
+    id: "sym-hammer",
+    name: "Búa Rèn Công xưởng",
+    category: "civilization",
+    tags: ["búa", "hammer", "thợ rèn", "hội đoàn"],
+    svgInner: `<g fill="currentColor"><rect x="-32" y="-32" width="64" height="22" rx="4"/><rect x="-6" y="-10" width="12" height="48" rx="3"/></g>`
+  },
+  {
+    id: "sym-city-gate",
+    name: "Cổng Thành Đô thị",
+    category: "civilization",
+    tags: ["cổng thành", "thành phố", "đô thị"],
+    svgInner: `<path d="M-36 -34 H-24 V-22 H-12 V-34 H12 V-22 H24 V-34 H36 V36 H14 V10 A14 14 0 0 0 -14 10 V36 H-36 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-quill",
+    name: "Bút lông Sử gia",
+    category: "civilization",
+    tags: ["bút lông", "quill", "sử gia", "văn thư"],
+    svgInner: `<path d="M30 -38 C8 -32 -14 -12 -24 16 L-34 38 L-10 26 C14 14 32 -10 30 -38 Z" fill="currentColor"/>`
+  },
+  {
+    id: "sym-scroll",
+    name: "Cuộn Thư Hiến chương",
+    category: "civilization",
+    tags: ["cuộn thư", "scroll", "luật pháp", "hiệp ước"],
+    svgInner: `<g fill="currentColor"><rect x="-24" y="-30" width="48" height="60" rx="6"/><rect x="-32" y="-34" width="64" height="10" rx="5"/><rect x="-32" y="24" width="64" height="10" rx="5"/></g>`
+  },
+  {
+    id: "sym-flask",
+    name: "Bình Giả kim & Khoa học",
+    category: "civilization",
+    tags: ["giả kim", "khoa học", "học viện", "y học"],
+    svgInner: `<path d="M-10 -38 H10 V-14 L32 28 C34 34 28 38 22 38 H-22 C-28 38 -34 34 -32 28 L-10 -14 Z" fill="currentColor"/>`
   }
 ];
 
@@ -271,10 +495,15 @@ export const EXTERNAL_ORNAMENTS: Array<{ id: OrnamentId; label: string; descript
   { id: "none", label: "Không trang trí ngoài", description: "Giữ dáng khiên tinh gọn" },
   { id: "imperial_crown", label: "Vương miện Đế chế", description: "Đặt trang trọng trên đỉnh khiên" },
   { id: "royal_crown", label: "Vương miện Vương quốc", description: "Vương miện 5 đỉnh cổ điển" },
+  { id: "knight_helmet", label: "Mũ giáp Hiệp sĩ (Helmet & Torse)", description: "Mũ giáp quý tộc kèm mào lông trên đỉnh" },
   { id: "laurel_wreath", label: "Vòng Nguyệt quế", description: "Ôm hai bên hông khiên" },
+  { id: "oak_wreath", label: "Vòng Lá Sồi Bền vững", description: "Vòng lá sồi uy nghi hai bên khiên" },
   { id: "supporters_wings", label: "Đôi Cánh Bảo hộ", description: "Hai cánh uy nghi chầu hai bên" },
+  { id: "banner_supporters", label: "Song Kỳ Chầu Hai Bên", description: "Hai cột cờ nghi lễ chéo sau khiên" },
   { id: "royal_mantle", label: "Áo choàng Hoàng gia", description: "Màn trướng quyền uy phía sau" },
   { id: "decorative_frame", label: "Khung Viền Ấn triện", description: "Vòng tròn ấn triện cổ điển" },
+  { id: "baroque_cartouche", label: "Khung Cartouche Baroque", description: "Khung chạm khắc hoàng gia cổ điển" },
   { id: "arcane_halo", label: "Hào quang Thiên văn", description: "Vòng tinh tú huyền bí phía sau" },
+  { id: "sunburst_halo", label: "Hào quang Thái dương", description: "Tia sáng tỏa tròn sau quốc huy" },
   { id: "crest_stars", label: "Chòm sao Đỉnh khiên", description: "3 ngôi sao hoàng gia trên đỉnh" }
 ];

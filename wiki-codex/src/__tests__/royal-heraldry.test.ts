@@ -1,18 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { queryHeraldryTemplates } from "@/lib/heraldry/template-catalog";
+import { CATEGORY_LABELS, queryHeraldryTemplates } from "@/lib/heraldry/template-catalog";
 import {
+  FIELD_DIVISIONS,
+  SHIELD_SHAPES,
   computeContrastRatio,
   sanitizeSvgContent
 } from "@/lib/heraldry/shapes-and-palettes";
 import {
+  EXTERNAL_ORNAMENTS,
+  HERALDIC_SYMBOLS
+} from "@/lib/heraldry/symbols-and-ornaments";
+import {
+  analyzeHeraldryComposition,
+  computeHeraldrySimilarity,
   generateHeraldryAiConcept,
   renderHeraldryToSvgString
 } from "@/lib/heraldry/renderer-and-export";
 import {
+  queryFlagTemplates,
+  renderFlagToSvgString
+} from "@/lib/heraldry/flag-engine";
+import {
   applyOfficialEmblemToKingdom,
+  deleteCustomTemplate,
+  deleteFlagDesign,
+  deleteHeraldicMeaning,
   deleteHeraldryDesign,
+  deleteRegaliaItem,
   restoreHeraldryVersion,
-  saveHeraldryDesign
+  saveCustomTemplate,
+  saveFlagDesign,
+  saveHeraldicMeaning,
+  saveHeraldryDesign,
+  saveRegaliaItem
 } from "@/db/heraldry-repository";
 
 describe("Royal Heraldry Studio — Templates, Security, Vector Export, Official Protection & AI", () => {
@@ -86,5 +106,124 @@ describe("Royal Heraldry Studio — Templates, Security, Vector Export, Official
 
     // Clean up non-official draft
     expect(await deleteHeraldryDesign(saved.id)).toBe(true);
+  });
+
+  it("provides 2,400+ category-tailored heraldry templates, 18 shapes, 18 divisions, 65+ symbols, and 14 ornaments", () => {
+    expect(SHIELD_SHAPES.length).toBeGreaterThanOrEqual(18);
+    expect(FIELD_DIVISIONS.length).toBeGreaterThanOrEqual(18);
+    expect(HERALDIC_SYMBOLS.length).toBeGreaterThanOrEqual(65);
+    expect(EXTERNAL_ORNAMENTS.length).toBeGreaterThanOrEqual(14);
+
+    const all = queryHeraldryTemplates({ page: 1, limit: 24 });
+    expect(all.total).toBeGreaterThanOrEqual(2400);
+
+    for (const cat of Object.keys(CATEGORY_LABELS)) {
+      const res = queryHeraldryTemplates({ category: cat, page: 1, limit: 12 });
+      expect(res.total).toBeGreaterThanOrEqual(240);
+    }
+  });
+
+  it("provides 450+ Flag & Banner templates and renders valid SVG for all 4 geometries", () => {
+    const flags = queryFlagTemplates({ page: 1, limit: 18 });
+    expect(flags.total).toBeGreaterThanOrEqual(450);
+
+    const geometries = ["rect_3_2", "rect_2_1", "swallowtail", "gonfalon_1_2"] as const;
+    for (const geo of geometries) {
+      const svg = renderFlagToSvgString({ ...flags.items[0].config, geometry: geo }, `t-${geo}`);
+      expect(svg).toContain("<svg");
+      expect(svg).toContain("</svg>");
+    }
+  });
+
+  it("analyzes heraldry composition and computes emblem similarity accurately", () => {
+    const tpl1 = queryHeraldryTemplates({ page: 1, limit: 2 }).items[0];
+    const analysis = analyzeHeraldryComposition(tpl1.designData);
+    expect(analysis.overallScore).toBeGreaterThanOrEqual(70);
+
+    const selfSim = computeHeraldrySimilarity(tpl1.designData, tpl1.designData);
+    expect(selfSim.score).toBe(100);
+  });
+
+  it("persists V2 Flags, Royal Regalia, Provenance-Enforced Meanings, and Custom Templates cleanly", async () => {
+    const flag = await saveFlagDesign({
+      workspaceId: "ws-aethelgard",
+      name: "Quốc kỳ Thử nghiệm",
+      category: "national_flag",
+      geometry: "rect_3_2",
+      layout: "nordic_cross",
+      primaryColor: "#101522",
+      secondaryColor: "#6D3D49",
+      tertiaryColor: "#C6A568",
+      symbolId: "sym-lion",
+      symbolColor: "#E9DFC9",
+      symbolScale: 1.5,
+      borderTrim: true,
+      borderColor: "#C6A568",
+      mottoText: "TEST",
+      linkedKingdomId: "KING-000001",
+      linkedEntityId: null,
+      eraLabel: "Test Era",
+      description: "",
+      createdBy: "Test Herald"
+    });
+    expect(flag.id).toMatch(/^FLAG-/);
+    expect(await deleteFlagDesign(flag.id)).toBe(true);
+
+    const reg = await saveRegaliaItem({
+      workspaceId: "ws-aethelgard",
+      name: "Vương miện Thử nghiệm",
+      category: "crown",
+      imageUrl: "",
+      origin: "Kỷ nguyên Cổ",
+      history: "Lưu trữ kiểm thử",
+      materials: "Vàng Cổ",
+      currentStatus: "active",
+      linkedKingdomId: "KING-000001",
+      linkedKingdomName: "Aethel",
+      linkedCharacterId: null,
+      linkedCharacterName: "",
+      dynastyName: "Vương triều Aethel",
+      eraLabel: "Cổ đại",
+      sourceCitation: "Biên niên sử",
+      createdBy: "Test Herald"
+    });
+    expect(reg.id).toMatch(/^REGA-/);
+    expect(await deleteRegaliaItem(reg.id)).toBe(true);
+
+    // Must downgrade verified_source -> unverified_draft if sourceCitation is empty
+    const meaning = await saveHeraldicMeaning({
+      workspaceId: "ws-aethelgard",
+      entryType: "symbol",
+      refId: "sym-bear",
+      title: "Gấu Bắc Địa",
+      civilization: "Phương Bắc",
+      iconographicMeaning: "Sức mạnh",
+      colorMeaning: "",
+      culturalContext: "",
+      politicalMeaning: "",
+      religiousMeaning: "",
+      legendAndLore: "",
+      origin: "",
+      sourceCitation: "",
+      verificationStatus: "verified_source",
+      createdBy: "Test Herald"
+    });
+    expect(meaning.verificationStatus).toBe("unverified_draft");
+    expect(await deleteHeraldicMeaning(meaning.id)).toBe(true);
+
+    const tpl = queryHeraldryTemplates({ page: 1, limit: 1 }).items[0];
+    const ctpl = await saveCustomTemplate({
+      workspaceId: "ws-aethelgard",
+      name: "Mẫu Tùy chỉnh Test",
+      collectionName: "Test Collection",
+      category: "kingdom_emblem",
+      style: "imperial",
+      license: "Internal",
+      description: "",
+      designData: tpl.designData,
+      createdBy: "Test Herald"
+    });
+    expect(ctpl.id).toMatch(/^CTPL-/);
+    expect(await deleteCustomTemplate(ctpl.id)).toBe(true);
   });
 });

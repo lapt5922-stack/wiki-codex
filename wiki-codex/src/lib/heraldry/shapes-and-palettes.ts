@@ -12,9 +12,12 @@ export const SHIELD_SHAPES: Array<{ id: ShieldShapeId; label: string; group: str
   { id: "kite", label: "Khiên Cánh diều (Kite)", group: "Trung cổ" },
   { id: "round", label: "Khiên Tròn (Round)", group: "Hình học" },
   { id: "oval", label: "Khiên Oval Hoàng gia", group: "Hình học" },
+  { id: "lozenge", label: "Khiên Hình thoi (Lozenge Quý tộc)", group: "Hình học" },
+  { id: "hexagonal", label: "Khiên Lục giác (Arcane Hex)", group: "Hình học" },
   { id: "french", label: "Khiên Pháp (French)", group: "Châu Âu" },
   { id: "spanish", label: "Khiên Tây Ban Nha (Iberian)", group: "Châu Âu" },
   { id: "italian", label: "Khiên Ý (Italian)", group: "Phục hưng" },
+  { id: "scutum", label: "Khiên Scutum Cổ đại", group: "Cổ đại" },
   { id: "gothic", label: "Khiên Gothic", group: "Kiến trúc" },
   { id: "baroque", label: "Khiên Baroque", group: "Phục hưng" },
   { id: "royal", label: "Khiên Đế chế (Royal)", group: "Hoàng gia" },
@@ -22,16 +25,40 @@ export const SHIELD_SHAPES: Array<{ id: ShieldShapeId; label: string; group: str
   { id: "custom", label: "Khiên Tùy chỉnh Hình học", group: "Tùy chỉnh" }
 ];
 
+export const SHIELD_GEOMETRY_PRESETS: Array<{
+  id: string;
+  label: string;
+  widthScale: number;
+  heightScale: number;
+  topCurve: number;
+  bottomPoint: number;
+}> = [
+  { id: "classic", label: "Cân đối Chuẩn", widthScale: 1, heightScale: 1, topCurve: 0, bottomPoint: 0 },
+  { id: "tall_imperial", label: "Cao Đế chế", widthScale: 0.92, heightScale: 1.15, topCurve: -10, bottomPoint: 18 },
+  { id: "broad_fortress", label: "Rộng Pháo đài", widthScale: 1.18, heightScale: 0.94, topCurve: 6, bottomPoint: 4 },
+  { id: "sharp_lance", label: "Nhọn Hiệp sĩ", widthScale: 0.88, heightScale: 1.12, topCurve: -14, bottomPoint: 34 },
+  { id: "royal_crested", label: "Đỉnh Uốn Hoàng gia", widthScale: 1.05, heightScale: 1.05, topCurve: 24, bottomPoint: 12 },
+  { id: "compact_seal", label: "Gọn Ấn triện", widthScale: 0.96, heightScale: 0.96, topCurve: 0, bottomPoint: 0 }
+];
+
 export const FIELD_DIVISIONS: Array<{ id: FieldDivisionId; label: string }> = [
   { id: "solid", label: "Đơn sắc (Solid)" },
   { id: "per_pale", label: "Chia đôi dọc (Per Pale)" },
   { id: "per_fess", label: "Chia đôi ngang (Per Fess)" },
   { id: "quarterly", label: "Chia tư Hoàng gia (Quarterly)" },
-  { id: "per_bend", label: "Chia chéo (Per Bend)" },
+  { id: "per_bend", label: "Chia chéo thuận (Per Bend)" },
+  { id: "bend_sinister", label: "Chia chéo ngược (Bend Sinister)" },
   { id: "per_saltire", label: "Chữ X (Per Saltire)" },
+  { id: "cross", label: "Chữ thập (Cross)" },
   { id: "chevron", label: "Chữ V (Chevron)" },
+  { id: "fess_band", label: "Dải ngang Trung tâm (Fess)" },
+  { id: "pile", label: "Hình nêm Đỉnh (Pile)" },
+  { id: "bordure", label: "Khung viền Đôi (Bordure)" },
   { id: "paly_stripes", label: "Sọc dọc (Paly)" },
   { id: "chequy", label: "Ô bàn cờ (Chequy)" },
+  { id: "lozengy", label: "Hoa văn Hình thoi (Lozengy)" },
+  { id: "gyronny", label: "8 Mảnh xoay (Gyronny)" },
+  { id: "seme_stars", label: "Nền Rải Tinh tú (Semé Stars)" },
   { id: "radial_glow", label: "Hào quang Tâm điểm" }
 ];
 
@@ -114,6 +141,16 @@ export function buildShieldPath(cfg: HeraldryShieldConfig): string {
     }
     case "fantasy": {
       return `M ${left - 8} ${top + 20} L ${left + 32} ${top - 6} Q ${cx} ${top + 22 + tc} ${right - 32} ${top - 6} L ${right + 8} ${top + 20} L ${right - 10} ${cy + 28} L ${cx} ${bottom + 24} L ${left + 10} ${cy + 28} Z`;
+    }
+    case "lozenge": {
+      return `M ${cx} ${top - 10 + tc} L ${right + 6} ${cy} L ${cx} ${bottom + 14} L ${left - 6} ${cy} Z`;
+    }
+    case "scutum": {
+      return `M ${left} ${top + 16} Q ${cx} ${top - 18 + tc} ${right} ${top + 16} V ${bottom - 24} Q ${cx} ${bottom + 12} ${left} ${bottom - 24} Z`;
+    }
+    case "hexagonal": {
+      const topY = top + 12 + tc * 0.4;
+      return `M ${cx} ${topY - 22} L ${right} ${topY + 46} V ${bottom - 62} L ${cx} ${bottom + 12} L ${left} ${bottom - 62} V ${topY + 46} Z`;
     }
     case "heater":
     case "medieval":

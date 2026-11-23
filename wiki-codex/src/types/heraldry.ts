@@ -41,6 +41,9 @@ export type ShieldShapeId =
   | "baroque"
   | "royal"
   | "fantasy"
+  | "lozenge"
+  | "scutum"
+  | "hexagonal"
   | "custom";
 
 export type FieldDivisionId =
@@ -53,7 +56,15 @@ export type FieldDivisionId =
   | "chevron"
   | "paly_stripes"
   | "chequy"
-  | "radial_glow";
+  | "radial_glow"
+  | "cross"
+  | "pile"
+  | "bordure"
+  | "gyronny"
+  | "lozengy"
+  | "seme_stars"
+  | "fess_band"
+  | "bend_sinister";
 
 export type OrnamentId =
   | "none"
@@ -64,7 +75,12 @@ export type OrnamentId =
   | "decorative_frame"
   | "supporters_wings"
   | "arcane_halo"
-  | "crest_stars";
+  | "crest_stars"
+  | "knight_helmet"
+  | "banner_supporters"
+  | "oak_wreath"
+  | "sunburst_halo"
+  | "baroque_cartouche";
 
 export type SymbolCategoryId =
   | "animals"
@@ -87,6 +103,8 @@ export interface HeraldryShieldConfig {
   secondaryColor: string;
   tertiaryColor: string;
   metallicEffect: boolean;
+  gradientMode?: "none" | "vertical" | "diagonal" | "radial";
+  textureMode?: "none" | "parchment" | "metal_grain" | "linen";
 }
 
 export type HeraldryLayerKind = "symbol" | "uploaded_image" | "text" | "ornament";
@@ -95,6 +113,7 @@ export interface HeraldryLayer {
   id: string;
   name: string;
   kind: HeraldryLayerKind;
+  groupId?: string;
   visible: boolean;
   locked: boolean;
   /** Center X in 600x600 canvas space */
@@ -180,6 +199,19 @@ export interface HeraldrySavedDesign {
   changeReason: string;
   version: number;
   createdBy: string;
+  approvedBy?: string;
+  dynastyId?: string | null;
+  dynastyName?: string;
+  dynastyRole?:
+    | "royal_house"
+    | "noble_family"
+    | "cadet_branch"
+    | "personal_arms"
+    | "heir_apparent"
+    | "marriage_alliance";
+  linkedCharacterId?: string | null;
+  linkedEventId?: string | null;
+  linkedEventTitle?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -189,6 +221,10 @@ export interface HeraldryVersionRecord {
   designId: string;
   versionNumber: number;
   editorName: string;
+  approverName?: string;
+  eraLabel?: string;
+  dynastyName?: string;
+  eventTitle?: string;
   changeNote: string;
   designData: HeraldryDesignData;
   createdAt: string;
@@ -205,3 +241,143 @@ export type HeraldryPreviewMode =
   | "official_seal"
   | "profile_card"
   | "archive_card";
+
+// ============================================================
+// V2 EXPANSION TYPES — FLAGS, REGALIA, MEANINGS, ASSET PACKS
+// ============================================================
+
+export type FlagCategoryId =
+  | "national_flag"
+  | "royal_standard"
+  | "military_banner"
+  | "naval_ensign"
+  | "city_flag"
+  | "dynasty_banner"
+  | "organization_flag"
+  | "ceremonial_banner"
+  | "historical_banner";
+
+export type FlagGeometryId = "rect_3_2" | "rect_2_1" | "swallowtail" | "gonfalon_1_2";
+
+export type FlagLayoutId =
+  | "solid"
+  | "horizontal_bicolor"
+  | "vertical_bicolor"
+  | "horizontal_tricolor"
+  | "vertical_tricolor"
+  | "nordic_cross"
+  | "symmetric_cross"
+  | "saltire"
+  | "canton"
+  | "chevron_hoist"
+  | "quarterly"
+  | "rising_sun";
+
+export interface HeraldryFlagDesign {
+  id: string; // FLAG-000001
+  workspaceId: string;
+  name: string;
+  category: FlagCategoryId;
+  geometry: FlagGeometryId;
+  layout: FlagLayoutId;
+  primaryColor: string;
+  secondaryColor: string;
+  tertiaryColor: string;
+  symbolId: string;
+  symbolColor: string;
+  symbolScale: number;
+  borderTrim: boolean;
+  borderColor: string;
+  mottoText: string;
+  linkedKingdomId: string | null;
+  linkedEntityId: string | null;
+  eraLabel: string;
+  description: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlagTemplateItem {
+  id: string; // FTPL-000001..FTPL-000450
+  name: string;
+  category: FlagCategoryId;
+  categoryLabel: string;
+  geometry: FlagGeometryId;
+  geometryLabel: string;
+  layout: FlagLayoutId;
+  layoutLabel: string;
+  symbolName: string;
+  config: Omit<
+    HeraldryFlagDesign,
+    "id" | "workspaceId" | "linkedKingdomId" | "linkedEntityId" | "createdBy" | "createdAt" | "updatedAt"
+  >;
+}
+
+export type RegaliaCategoryId =
+  | "crown"
+  | "scepter"
+  | "throne"
+  | "great_seal"
+  | "ceremonial_sword"
+  | "royal_jewelry"
+  | "coronation_mantle"
+  | "heirloom"
+  | "coronation_artifact";
+
+export interface RoyalRegaliaItem {
+  id: string; // REGA-000001
+  workspaceId: string;
+  name: string;
+  category: RegaliaCategoryId;
+  imageUrl: string;
+  origin: string;
+  history: string;
+  materials: string;
+  currentStatus: "active" | "archived" | "lost" | "destroyed" | "ceremonial_only";
+  linkedKingdomId: string | null;
+  linkedKingdomName: string;
+  linkedCharacterId: string | null;
+  linkedCharacterName: string;
+  dynastyName: string;
+  eraLabel: string;
+  sourceCitation: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HeraldicMeaningEntry {
+  id: string; // HMEAN-000001
+  workspaceId: string;
+  entryType: "symbol" | "color" | "division" | "ornament";
+  refId: string;
+  title: string;
+  civilization: string;
+  iconographicMeaning: string;
+  colorMeaning: string;
+  culturalContext: string;
+  politicalMeaning: string;
+  religiousMeaning: string;
+  legendAndLore: string;
+  origin: string;
+  sourceCitation: string;
+  verificationStatus: "verified_source" | "in_world_canon" | "unverified_draft";
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HeraldryCustomTemplate {
+  id: string; // CTPL-000001
+  workspaceId: string;
+  name: string;
+  collectionName: string;
+  category: HeraldryCategoryId;
+  style: HeraldryStyleId;
+  license: string;
+  description: string;
+  designData: HeraldryDesignData;
+  createdBy: string;
+  createdAt: string;
+}

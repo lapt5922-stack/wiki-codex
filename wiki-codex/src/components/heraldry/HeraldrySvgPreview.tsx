@@ -7,12 +7,14 @@ import { renderHeraldryToSvgString } from "@/lib/heraldry/renderer-and-export";
 interface HeraldrySvgPreviewProps {
   design: HeraldryDesignData;
   uid: string;
+  size?: number;
   className?: string;
 }
 
 export function HeraldrySvgPreview({
   design,
   uid,
+  size,
   className = "w-full h-full"
 }: HeraldrySvgPreviewProps) {
   const svgMarkup = useMemo(
@@ -22,7 +24,8 @@ export function HeraldrySvgPreview({
 
   return (
     <div
-      className={className}
+      className={size ? "shrink-0 [&>svg]:w-full [&>svg]:h-full" : className}
+      style={size ? { width: size, height: size } : undefined}
       dangerouslySetInnerHTML={{ __html: svgMarkup }}
     />
   );

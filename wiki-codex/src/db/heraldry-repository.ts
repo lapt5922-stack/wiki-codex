@@ -2,11 +2,15 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import type {
+  HeraldicMeaningEntry,
   HeraldryCategoryId,
+  HeraldryCustomTemplate,
   HeraldryDesignData,
+  HeraldryFlagDesign,
   HeraldrySavedDesign,
   HeraldryStyleId,
-  HeraldryVersionRecord
+  HeraldryVersionRecord,
+  RoyalRegaliaItem
 } from "@/types/heraldry";
 import { getPostgresPool, isPostgresConfigured } from "./pool";
 import { updateKingdomDossier } from "./kingdom-repository";
@@ -17,6 +21,105 @@ interface HeraldryStore {
   designs: HeraldrySavedDesign[];
   versions: HeraldryVersionRecord[];
   favoriteTemplateIds: string[];
+  flags: HeraldryFlagDesign[];
+  regalia: RoyalRegaliaItem[];
+  meanings: HeraldicMeaningEntry[];
+  customTemplates: HeraldryCustomTemplate[];
+}
+
+const DEFAULT_MEANINGS: HeraldicMeaningEntry[] = [
+  {
+    id: "HMEAN-000001",
+    workspaceId: "ws-aethelgard",
+    entryType: "symbol",
+    refId: "sym-lion",
+    title: "Sư tử Hoàng gia (Lion)",
+    civilization: "Truyền thống Vương triều Cổ điển",
+    iconographicMeaning: "Biểu trưng của lòng quả cảm, quyền uy tối thượng và vương quyền chính thống.",
+    colorMeaning: "Thường kết hợp Vàng Kim (Or) trên nền Đỏ Son (Gules) hoặc Midnight Navy.",
+    culturalContext: "Xuất hiện trên quốc huy các vương quốc lập quốc và gia tộc thượng lưu.",
+    politicalMeaning: "Khẳng định chủ quyền quân sự và vai trò bảo hộ thần dân.",
+    religiousMeaning: "Gắn với ánh sáng công lý và sức mạnh canh giữ thánh điện.",
+    legendAndLore: "Tương truyền Sư tử Vàng là biểu tượng của đội Cấm vệ đầu tiên tại Đại Sảnh Tri Thức.",
+    origin: "Huy chương học Trung cổ (Medieval Heraldry)",
+    sourceCitation: "Aethel Codex Editorial Standard · Classic Heraldry Reference",
+    verificationStatus: "verified_source",
+    createdBy: "Archivist System",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "HMEAN-000002",
+    workspaceId: "ws-aethelgard",
+    entryType: "symbol",
+    refId: "sym-double-eagle",
+    title: "Đại bàng Hai đầu (Double-Headed Eagle)",
+    civilization: "Đế chế Liên lục địa (Byzantine-inspired)",
+    iconographicMeaning: "Tầm nhìn bao quát Đông – Tây, biểu trưng cho sự thống nhất quyền lực thế tục và tinh thần.",
+    colorMeaning: "Thường đi cùng Đen Tuyền (Sable) hoặc Vàng Cổ (Antique Gold) trên nền Đỏ Tía Hoàng gia.",
+    culturalContext: "Chỉ được phép sử dụng bởi Đế chế hoặc Hoàng thất cấp tối cao.",
+    politicalMeaning: "Biểu thị liên minh hai vương quốc hoặc quyền cai trị hai miền địa lý.",
+    religiousMeaning: "Cầu nối giữa thiên giới và nhân gian trong nghi lễ đăng quang.",
+    legendAndLore: "Hải ưng song thủ canh giữ cửa ngõ giữa đại lục cũ và tân thế giới.",
+    origin: "Huy hiệu Đế chế Đông La Mã & Thần Thánh La Mã",
+    sourceCitation: "Historical Heraldry Reference · Imperial Archives",
+    verificationStatus: "verified_source",
+    createdBy: "Archivist System",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "HMEAN-000003",
+    workspaceId: "ws-aethelgard",
+    entryType: "color",
+    refId: "or",
+    title: "Or · Vàng Kim & Antique Gold (#C6A568)",
+    civilization: "Hệ màu Huy hiệu học Truyền thống",
+    iconographicMeaning: "Sự cao quý, trí tuệ, hào phóng và uy nghiêm bất diệt.",
+    colorMeaning: "Thuộc nhóm Kim loại (Metals) trong Quy tắc Tincture — ưu tiên đặt trên nền màu đậm.",
+    culturalContext: "Dùng cho viền khiên, vương miện và biểu tượng trung tâm.",
+    politicalMeaning: "Thể hiện sự thịnh vượng tài chính và tính chính danh của triều đại.",
+    religiousMeaning: "Ánh sáng chân lý và sự trường tồn.",
+    legendAndLore: "Ánh vàng cổ của giấy da và mực dát vàng trong Đại Thư viện.",
+    origin: "Rule of Tincture · Classical Heraldry",
+    sourceCitation: "Standard Tincture Rules (Or / Argent vs. Colours)",
+    verificationStatus: "verified_source",
+    createdBy: "Archivist System",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "HMEAN-000004",
+    workspaceId: "ws-aethelgard",
+    entryType: "symbol",
+    refId: "sym-magic-circle",
+    title: "Vòng tròn Ma pháp & Thiên cầu (Arcane Circle)",
+    civilization: "Các Học viện Ma pháp & Hội đồng Tri thức",
+    iconographicMeaning: "Trật tự vũ trụ, kỷ luật học thuật và năng lượng Aether cân bằng.",
+    colorMeaning: "Thường phối với Midnight Navy (#101522), Arcane Blue (#657D91) và Ivory (#E9DFC9).",
+    culturalContext: "Biểu trưng chuẩn mực của học viện, đài thiên văn và hội đồng lưu trữ.",
+    politicalMeaning: "Thể hiện vị thế trung lập học thuật và quyền giám sát cổ thư.",
+    religiousMeaning: "Vòng tuần hoàn bất tận của thời gian và các vì sao.",
+    legendAndLore: "Cần bổ sung nguồn trích dẫn cụ thể theo từng Học viện trong thế giới Aethel.",
+    origin: "Aethel Codex Original Worldbuilding",
+    sourceCitation: "Aethel Codex Canon · Arcane Academy Guidelines",
+    verificationStatus: "in_world_canon",
+    createdBy: "Archivist System",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  }
+];
+
+function normalizeStore(raw: Partial<HeraldryStore> | null | undefined): HeraldryStore {
+  return {
+    designs: Array.isArray(raw?.designs) ? raw!.designs : [],
+    versions: Array.isArray(raw?.versions) ? raw!.versions : [],
+    favoriteTemplateIds: Array.isArray(raw?.favoriteTemplateIds) ? raw!.favoriteTemplateIds : [],
+    flags: Array.isArray(raw?.flags) ? raw!.flags : [],
+    regalia: Array.isArray(raw?.regalia) ? raw!.regalia : [],
+    meanings: Array.isArray(raw?.meanings) && raw!.meanings.length > 0 ? raw!.meanings : structuredClone(DEFAULT_MEANINGS),
+    customTemplates: Array.isArray(raw?.customTemplates) ? raw!.customTemplates : []
+  };
 }
 
 const LOCAL_FILE = path.join(process.cwd(), ".data", "heraldry-studio.json");
@@ -46,7 +149,7 @@ export async function loadHeraldryStore(): Promise<HeraldryStore> {
       if (pool) {
         const res = await pool.query(`SELECT payload FROM codex_heraldry_blob WHERE id = 'primary' LIMIT 1`);
         if (res.rows[0]?.payload) {
-          cached = res.rows[0].payload as HeraldryStore;
+          cached = normalizeStore(res.rows[0].payload as Partial<HeraldryStore>);
           return cached;
         }
       }
@@ -56,13 +159,13 @@ export async function loadHeraldryStore(): Promise<HeraldryStore> {
   }
   if (fs.existsSync(LOCAL_FILE)) {
     try {
-      cached = JSON.parse(fs.readFileSync(LOCAL_FILE, "utf8")) as HeraldryStore;
+      cached = normalizeStore(JSON.parse(fs.readFileSync(LOCAL_FILE, "utf8")) as Partial<HeraldryStore>);
       return cached;
     } catch {
       // fall through
     }
   }
-  cached = { designs: [], versions: [], favoriteTemplateIds: [] };
+  cached = normalizeStore(null);
   return cached;
 }
 
@@ -84,12 +187,22 @@ async function saveHeraldryStore(store: HeraldryStore) {
       // ignore
     }
   }
-  try {
-    const dir = path.dirname(LOCAL_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(LOCAL_FILE, JSON.stringify(store, null, 2), "utf8");
-  } catch {
-    // ignore
+  const dir = path.dirname(LOCAL_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const payload = JSON.stringify(store, null, 2);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const tmp = `${LOCAL_FILE}.${process.pid}.${Date.now()}.${attempt}.tmp`;
+    try {
+      fs.writeFileSync(tmp, payload, "utf8");
+      fs.renameSync(tmp, LOCAL_FILE);
+      break;
+    } catch {
+      try {
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      } catch {
+        // ignore
+      }
+    }
   }
 }
 
@@ -125,6 +238,13 @@ export async function saveHeraldryDesign(input: {
   startDate?: string;
   endDate?: string;
   changeReason?: string;
+  approvedBy?: string;
+  dynastyId?: string | null;
+  dynastyName?: string;
+  dynastyRole?: HeraldrySavedDesign["dynastyRole"];
+  linkedCharacterId?: string | null;
+  linkedEventId?: string | null;
+  linkedEventTitle?: string;
   editorName: string;
 }): Promise<HeraldrySavedDesign> {
   const store = await loadHeraldryStore();
@@ -140,6 +260,10 @@ export async function saveHeraldryDesign(input: {
         designId: existing.id,
         versionNumber: nextVer,
         editorName: input.editorName,
+        approverName: input.approvedBy || existing.approvedBy || "",
+        eraLabel: input.eraLabel ?? existing.eraLabel,
+        dynastyName: input.dynastyName ?? existing.dynastyName,
+        eventTitle: input.linkedEventTitle ?? existing.linkedEventTitle,
         changeNote: input.changeReason || `Cập nhật thiết kế v${nextVer}`,
         designData: structuredClone(input.designData),
         createdAt: now
@@ -153,6 +277,13 @@ export async function saveHeraldryDesign(input: {
       if (input.startDate !== undefined) existing.startDate = input.startDate;
       if (input.endDate !== undefined) existing.endDate = input.endDate;
       if (input.changeReason !== undefined) existing.changeReason = input.changeReason;
+      if (input.approvedBy !== undefined) existing.approvedBy = input.approvedBy;
+      if (input.dynastyId !== undefined) existing.dynastyId = input.dynastyId;
+      if (input.dynastyName !== undefined) existing.dynastyName = input.dynastyName;
+      if (input.dynastyRole !== undefined) existing.dynastyRole = input.dynastyRole;
+      if (input.linkedCharacterId !== undefined) existing.linkedCharacterId = input.linkedCharacterId;
+      if (input.linkedEventId !== undefined) existing.linkedEventId = input.linkedEventId;
+      if (input.linkedEventTitle !== undefined) existing.linkedEventTitle = input.linkedEventTitle;
       existing.version = nextVer;
       existing.updatedAt = now;
       await saveHeraldryStore(store);
@@ -180,6 +311,13 @@ export async function saveHeraldryDesign(input: {
     changeReason: input.changeReason || "Khởi tạo thiết kế mới",
     version: 1,
     createdBy: input.editorName,
+    approvedBy: input.approvedBy || "",
+    dynastyId: input.dynastyId || null,
+    dynastyName: input.dynastyName || "",
+    dynastyRole: input.dynastyRole,
+    linkedCharacterId: input.linkedCharacterId || null,
+    linkedEventId: input.linkedEventId || null,
+    linkedEventTitle: input.linkedEventTitle || "",
     createdAt: now,
     updatedAt: now
   };
@@ -190,6 +328,10 @@ export async function saveHeraldryDesign(input: {
     designId: id,
     versionNumber: 1,
     editorName: input.editorName,
+    approverName: created.approvedBy || "",
+    eraLabel: created.eraLabel,
+    dynastyName: created.dynastyName,
+    eventTitle: created.linkedEventTitle,
     changeNote: created.changeReason,
     designData: structuredClone(input.designData),
     createdAt: now
@@ -306,4 +448,185 @@ export async function deleteHeraldryDesign(id: string): Promise<boolean> {
   store.designs = store.designs.filter((d) => d.id !== id);
   await saveHeraldryStore(store);
   return true;
+}
+
+// ============================================================
+// V2 EXPANSION REPOSITORY — FLAGS, REGALIA, MEANINGS, PACKS
+// ============================================================
+
+export async function listFlags(workspaceId: string): Promise<HeraldryFlagDesign[]> {
+  const store = await loadHeraldryStore();
+  return store.flags.filter((f) => !workspaceId || f.workspaceId === workspaceId);
+}
+
+export async function saveFlagDesign(
+  input: Omit<HeraldryFlagDesign, "id" | "createdAt" | "updatedAt"> & { id?: string }
+): Promise<HeraldryFlagDesign> {
+  const store = await loadHeraldryStore();
+  const now = new Date().toISOString();
+  if (input.id) {
+    const idx = store.flags.findIndex((f) => f.id === input.id);
+    if (idx >= 0) {
+      store.flags[idx] = { ...store.flags[idx], ...input, id: input.id, updatedAt: now };
+      await saveHeraldryStore(store);
+      return store.flags[idx];
+    }
+  }
+  const created: HeraldryFlagDesign = {
+    ...input,
+    id: `FLAG-${String(store.flags.length + 1).padStart(6, "0")}-${crypto.randomBytes(2).toString("hex")}`,
+    createdAt: now,
+    updatedAt: now
+  };
+  store.flags.unshift(created);
+  await saveHeraldryStore(store);
+  return created;
+}
+
+export async function deleteFlagDesign(id: string): Promise<boolean> {
+  const store = await loadHeraldryStore();
+  const prev = store.flags.length;
+  store.flags = store.flags.filter((f) => f.id !== id);
+  if (store.flags.length === prev) return false;
+  await saveHeraldryStore(store);
+  return true;
+}
+
+export async function listRegalia(workspaceId: string): Promise<RoyalRegaliaItem[]> {
+  const store = await loadHeraldryStore();
+  return store.regalia.filter((r) => !workspaceId || r.workspaceId === workspaceId);
+}
+
+export async function saveRegaliaItem(
+  input: Omit<RoyalRegaliaItem, "id" | "createdAt" | "updatedAt"> & { id?: string }
+): Promise<RoyalRegaliaItem> {
+  const store = await loadHeraldryStore();
+  const now = new Date().toISOString();
+  if (input.id) {
+    const idx = store.regalia.findIndex((r) => r.id === input.id);
+    if (idx >= 0) {
+      store.regalia[idx] = { ...store.regalia[idx], ...input, id: input.id, updatedAt: now };
+      await saveHeraldryStore(store);
+      return store.regalia[idx];
+    }
+  }
+  const created: RoyalRegaliaItem = {
+    ...input,
+    id: `REGA-${String(store.regalia.length + 1).padStart(6, "0")}-${crypto.randomBytes(2).toString("hex")}`,
+    createdAt: now,
+    updatedAt: now
+  };
+  store.regalia.unshift(created);
+  await saveHeraldryStore(store);
+  return created;
+}
+
+export async function deleteRegaliaItem(id: string): Promise<boolean> {
+  const store = await loadHeraldryStore();
+  const prev = store.regalia.length;
+  store.regalia = store.regalia.filter((r) => r.id !== id);
+  if (store.regalia.length === prev) return false;
+  await saveHeraldryStore(store);
+  return true;
+}
+
+export async function listHeraldicMeanings(workspaceId: string): Promise<HeraldicMeaningEntry[]> {
+  const store = await loadHeraldryStore();
+  return store.meanings.filter((m) => !workspaceId || m.workspaceId === workspaceId || m.workspaceId === "ws-aethelgard");
+}
+
+export async function saveHeraldicMeaning(
+  input: Omit<HeraldicMeaningEntry, "id" | "createdAt" | "updatedAt"> & { id?: string }
+): Promise<HeraldicMeaningEntry> {
+  const store = await loadHeraldryStore();
+  const now = new Date().toISOString();
+  // Enforce provenance rule: entries without sourceCitation cannot be marked verified_source
+  const verificationStatus: HeraldicMeaningEntry["verificationStatus"] =
+    input.verificationStatus === "verified_source" && !input.sourceCitation.trim()
+      ? "unverified_draft"
+      : input.verificationStatus;
+
+  if (input.id) {
+    const idx = store.meanings.findIndex((m) => m.id === input.id);
+    if (idx >= 0) {
+      store.meanings[idx] = {
+        ...store.meanings[idx],
+        ...input,
+        verificationStatus,
+        id: input.id,
+        updatedAt: now
+      };
+      await saveHeraldryStore(store);
+      return store.meanings[idx];
+    }
+  }
+  const created: HeraldicMeaningEntry = {
+    ...input,
+    verificationStatus,
+    id: `HMEAN-${String(store.meanings.length + 1).padStart(6, "0")}`,
+    createdAt: now,
+    updatedAt: now
+  };
+  store.meanings.unshift(created);
+  await saveHeraldryStore(store);
+  return created;
+}
+
+export async function deleteHeraldicMeaning(id: string): Promise<boolean> {
+  const store = await loadHeraldryStore();
+  const prev = store.meanings.length;
+  store.meanings = store.meanings.filter((m) => m.id !== id);
+  if (store.meanings.length === prev) return false;
+  await saveHeraldryStore(store);
+  return true;
+}
+
+export async function listCustomTemplates(workspaceId: string): Promise<HeraldryCustomTemplate[]> {
+  const store = await loadHeraldryStore();
+  return store.customTemplates.filter((t) => !workspaceId || t.workspaceId === workspaceId);
+}
+
+export async function saveCustomTemplate(
+  input: Omit<HeraldryCustomTemplate, "id" | "createdAt">
+): Promise<HeraldryCustomTemplate> {
+  const store = await loadHeraldryStore();
+  const created: HeraldryCustomTemplate = {
+    ...input,
+    id: `CTPL-${String(store.customTemplates.length + 1).padStart(6, "0")}-${crypto.randomBytes(2).toString("hex")}`,
+    createdAt: new Date().toISOString()
+  };
+  store.customTemplates.unshift(created);
+  await saveHeraldryStore(store);
+  return created;
+}
+
+export async function deleteCustomTemplate(id: string): Promise<boolean> {
+  const store = await loadHeraldryStore();
+  const prev = store.customTemplates.length;
+  store.customTemplates = store.customTemplates.filter((t) => t.id !== id);
+  if (store.customTemplates.length === prev) return false;
+  await saveHeraldryStore(store);
+  return true;
+}
+
+export async function importCustomTemplatePack(
+  workspaceId: string,
+  templates: Array<Omit<HeraldryCustomTemplate, "id" | "createdAt" | "workspaceId" | "createdBy">>,
+  editorName: string
+): Promise<{ imported: number }> {
+  const store = await loadHeraldryStore();
+  let imported = 0;
+  for (const tpl of templates.slice(0, 100)) {
+    if (!tpl.name?.trim() || !tpl.designData) continue;
+    store.customTemplates.unshift({
+      ...tpl,
+      id: `CTPL-${String(store.customTemplates.length + 1).padStart(6, "0")}-${crypto.randomBytes(2).toString("hex")}`,
+      workspaceId,
+      createdBy: editorName,
+      createdAt: new Date().toISOString()
+    });
+    imported++;
+  }
+  await saveHeraldryStore(store);
+  return { imported };
 }

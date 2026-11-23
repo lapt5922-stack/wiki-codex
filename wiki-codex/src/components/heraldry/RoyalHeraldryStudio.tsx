@@ -2,8 +2,11 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
   ArrowDown,
   ArrowUp,
+  BookOpen,
   Bot,
   Check,
   ChevronLeft,
@@ -13,6 +16,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  Flag,
   FlipHorizontal,
   FlipVertical,
   FolderHeart,
@@ -20,6 +24,8 @@ import {
   History,
   Layers,
   Lock,
+  Magnet,
+  Package,
   Palette,
   Plus,
   Redo2,
@@ -27,6 +33,7 @@ import {
   Save,
   Search,
   Shield,
+  ShieldCheck,
   Sparkles,
   Star,
   Trash2,
@@ -53,6 +60,7 @@ import type {
 import {
   FIELD_DIVISIONS,
   HERALDIC_COLORS,
+  SHIELD_GEOMETRY_PRESETS,
   SHIELD_SHAPES,
   computeContrastRatio
 } from "@/lib/heraldry/shapes-and-palettes";
@@ -70,6 +78,8 @@ import { uploadImageToVault } from "@/lib/client-image-optimizer";
 import { useDeviceUI } from "@/lib/device-ui";
 import { DraggableScrollArea } from "../DraggableScrollArea";
 import { HeraldrySvgPreview } from "./HeraldrySvgPreview";
+import { FlagBannerStudio } from "./FlagBannerStudio";
+import { HeraldryExpansionHub, type ExpansionSubMode } from "./HeraldryExpansionHub";
 
 interface RoyalHeraldryStudioProps {
   workspaceId: string;
@@ -181,15 +191,17 @@ export function RoyalHeraldryStudio({
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>("lyr-init-1");
   const [zoom, setZoom] = useState(1);
   const [showGrid, setShowGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [studioModule, setStudioModule] = useState<"composer" | "flags" | ExpansionSubMode>("composer");
   const [leftTab, setLeftTab] = useState<LeftToolTab>("templates");
   const [mobilePanel, setMobilePanel] = useState<"canvas" | "tools" | "layers">("canvas");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // Template Library State (1,200+ server-paginated templates)
+  // Template Library State (2,400+ server-paginated templates)
   const [templates, setTemplates] = useState<HeraldryTemplateItem[]>([]);
-  const [tplTotal, setTplTotal] = useState(1200);
+  const [tplTotal, setTplTotal] = useState(2400);
   const [tplPage, setTplPage] = useState(1);
-  const [tplTotalPages, setTplTotalPages] = useState(50);
+  const [tplTotalPages, setTplTotalPages] = useState(200);
   const [tplQuery, setTplQuery] = useState("");
   const [tplStyle, setTplStyle] = useState("");
   const [tplCategory, setTplCategory] = useState("");
@@ -229,6 +241,10 @@ export function RoyalHeraldryStudio({
     conceptName: string;
     symbolismDescription: string;
     variations: Array<{ style: string; styleLabel: string; designData: HeraldryDesignData }>;
+  } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    analysis: { overallScore: number; findings: Array<{ level: "ok" | "tip" | "warn"; message: string }> };
+    similar: Array<{ id: string; name: string; score: number; summary: string; isOfficial: boolean }>;
   } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -524,6 +540,25 @@ export function RoyalHeraldryStudio({
     }
   }
 
+  async function handleAnalyzeCanvas() {
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/heraldry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ai_analyze",
+          workspaceId,
+          designData: design
+        })
+      });
+      const data = await res.json();
+      if (data.analysis) setAiAnalysis({ analysis: data.analysis, similar: data.similar || [] });
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   async function openVersions() {
     if (!designId) return;
     const res = await fetch(`/api/heraldry?mode=versions&designId=${encodeURIComponent(designId)}`);
@@ -532,7 +567,7 @@ export function RoyalHeraldryStudio({
     setShowVersionsModal(true);
   }
 
-  // Interactive Canvas Drag for Selected Layer
+  // Interactive Canvas Drag for Selected Layer (with optional Snap-to-Grid 10px)
   function onCanvasPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!selectedLayer || selectedLayer.locked || selectedLayer.kind === "ornament") return;
     draggingLayerRef.current = {
@@ -551,8 +586,12 @@ export function RoyalHeraldryStudio({
     const scaleFactor = 600 / box.width;
     const dx = (e.clientX - st.startClientX) * scaleFactor;
     const dy = (e.clientY - st.startClientY) * scaleFactor;
-    const nx = Math.round(Math.max(60, Math.min(540, st.origX + dx)));
-    const ny = Math.round(Math.max(60, Math.min(540, st.origY + dy)));
+    let nx = Math.round(Math.max(60, Math.min(540, st.origX + dx)));
+    let ny = Math.round(Math.max(60, Math.min(540, st.origY + dy)));
+    if (snapToGrid) {
+      nx = Math.round(nx / 10) * 10;
+      ny = Math.round(ny / 10) * 10;
+    }
     setDesign((prev) => ({
       ...prev,
       layers: prev.layers.map((l) => (l.id === st.id ? { ...l, x: nx, y: ny } : l))
@@ -580,9 +619,9 @@ export function RoyalHeraldryStudio({
         {(
           [
             ["templates", Sparkles, `Mẫu (${tplTotal})`],
-            ["shapes", Shield, "15 Khiên"],
-            ["symbols", Crown, "Biểu tượng"],
-            ["ornaments", Star, "Trang trí"],
+            ["shapes", Shield, "18 Khiên"],
+            ["symbols", Crown, `Biểu tượng (${HERALDIC_SYMBOLS.length})`],
+            ["ornaments", Star, "14 Trang trí"],
             ["text", Type, "Khẩu hiệu"],
             ["upload", Upload, "Tải ảnh"],
             ["ai", Bot, "AI Gợi ý"],
@@ -615,7 +654,7 @@ export function RoyalHeraldryStudio({
                 setTplQuery(e.target.value);
                 setTplPage(1);
               }}
-              placeholder="Tìm trong 1.200+ mẫu (sư tử, rồng, gothic...)"
+              placeholder="Tìm trong 2.400+ mẫu chuyên biệt (sư tử, rồng, gothic...)"
               className="w-full pl-8 pr-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] text-xs"
             />
           </div>
@@ -625,11 +664,11 @@ export function RoyalHeraldryStudio({
               {Object.entries(STYLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <select value={tplCategory} onChange={(e) => { setTplCategory(e.target.value); setTplPage(1); }} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-[11px]">
-              <option value="">Mọi loại hình (10)</option>
+              <option value="">Mọi loại hình (10 · 240 mẫu/mục)</option>
               {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <select value={tplShape} onChange={(e) => { setTplShape(e.target.value); setTplPage(1); }} className="col-span-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-[11px]">
-              <option value="">Mọi hình dáng khiên (15)</option>
+              <option value="">Mọi hình dáng khiên (18)</option>
               {SHIELD_SHAPES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </div>
@@ -733,6 +772,27 @@ export function RoyalHeraldryStudio({
           </div>
 
           <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)]">
+            <div className="text-[11px] font-bold text-[#C6A568]">Preset Hình học Nhanh (6 kiểu)</div>
+            <div className="grid grid-cols-3 gap-1">
+              {SHIELD_GEOMETRY_PRESETS.map((pr) => (
+                <button
+                  key={pr.id}
+                  type="button"
+                  onClick={() =>
+                    commitDesign((d) => {
+                      d.shield.widthScale = pr.widthScale;
+                      d.shield.heightScale = pr.heightScale;
+                      d.shield.topCurve = pr.topCurve;
+                      d.shield.bottomPoint = pr.bottomPoint;
+                      return d;
+                    })
+                  }
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[#101522]/75 px-1.5 py-1 text-[10px] text-[#E9DFC9] hover:border-[#C6A568] cursor-pointer"
+                >
+                  {pr.label}
+                </button>
+              ))}
+            </div>
             <div className="text-[11px] font-bold text-[#C6A568]">Tùy chỉnh Hình học Khiên</div>
             <label className="block space-y-0.5">
               <span>Chiều rộng ({Math.round(design.shield.widthScale * 100)}%)</span>
@@ -752,13 +812,46 @@ export function RoyalHeraldryStudio({
             </label>
 
             <div className="space-y-1">
-              <span className="text-[11px] font-bold text-[#C6A568]">Chia nền Khiên (10 kiểu)</span>
+              <span className="text-[11px] font-bold text-[#C6A568]">Chia nền & Hoa văn Khiên (18 kiểu)</span>
               <select
                 value={design.shield.fieldDivision}
                 onChange={(e) => commitDesign((d) => { d.shield.fieldDivision = e.target.value as FieldDivisionId; return d; })}
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5"
               >
                 {FIELD_DIVISIONS.map((fd) => <option key={fd.id} value={fd.id}>{fd.label}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <select
+                value={design.shield.gradientMode || "none"}
+                onChange={(e) =>
+                  commitDesign((d) => {
+                    d.shield.gradientMode = e.target.value as HeraldryDesignData["shield"]["gradientMode"];
+                    return d;
+                  })
+                }
+                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-[11px]"
+              >
+                <option value="none">Gradient: Tắt</option>
+                <option value="vertical">Gradient Dọc</option>
+                <option value="diagonal">Gradient Chéo</option>
+                <option value="radial">Gradient Tâm</option>
+              </select>
+              <select
+                value={design.shield.textureMode || "none"}
+                onChange={(e) =>
+                  commitDesign((d) => {
+                    d.shield.textureMode = e.target.value as HeraldryDesignData["shield"]["textureMode"];
+                    return d;
+                  })
+                }
+                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 text-[11px]"
+              >
+                <option value="none">Chất liệu: Phẳng</option>
+                <option value="parchment">Giấy da Cổ</option>
+                <option value="metal_grain">Ánh Kim xước</option>
+                <option value="linen">Vải Lanh Cờ</option>
               </select>
             </div>
 
@@ -957,14 +1050,49 @@ export function RoyalHeraldryStudio({
             onChange={(e) => setAiPrompt(e.target.value)}
             className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-2 text-xs"
           />
-          <button
-            type="button"
-            disabled={aiLoading}
-            onClick={() => void handleRunAi()}
-            className="w-full py-2 rounded-xl bg-[#C6A568] text-[#101522] font-bold cursor-pointer disabled:opacity-50"
-          >
-            {aiLoading ? "Đang tạo ý tưởng..." : "Sinh 6 Phương án Thiết kế & Ý nghĩa"}
-          </button>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              disabled={aiLoading}
+              onClick={() => void handleRunAi()}
+              className="py-2 rounded-xl bg-[#C6A568] text-[#101522] font-bold cursor-pointer disabled:opacity-50"
+            >
+              {aiLoading ? "Đang xử lý..." : "Sinh 6 Phương án"}
+            </button>
+            <button
+              type="button"
+              disabled={aiLoading}
+              onClick={() => void handleAnalyzeCanvas()}
+              className="py-2 rounded-xl border border-[#C6A568]/50 bg-[#101522] text-[#C6A568] font-bold cursor-pointer disabled:opacity-50"
+            >
+              Phân tích & Kiểm trùng
+            </button>
+          </div>
+
+          {aiAnalysis && (
+            <div className="rounded-xl border border-[#C6A568]/30 bg-[#101522]/85 p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between font-bold text-[#C6A568]">
+                <span>Đánh giá Bố cục Canvas</span>
+                <span>{aiAnalysis.analysis.overallScore}/100</span>
+              </div>
+              {aiAnalysis.analysis.findings.map((f, i) => (
+                <div key={i} className={`text-[10px] ${f.level === "warn" ? "text-amber-300" : f.level === "tip" ? "text-sky-300" : "text-emerald-300"}`}>
+                  • {f.message}
+                </div>
+              ))}
+              {aiAnalysis.similar.length > 0 && (
+                <div className="pt-1 border-t border-white/10 space-y-1">
+                  <div className="text-[10px] font-bold text-amber-300">Phát hiện thiết kế tương đồng:</div>
+                  {aiAnalysis.similar.map((s) => (
+                    <div key={s.id} className="text-[10px] text-[#E9DFC9]/80 flex justify-between">
+                      <span className="truncate">{s.name}</span>
+                      <span className="text-[#C6A568] font-bold">{s.score}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {aiResult && (
             <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)] max-h-[340px] overflow-y-auto codex-scrollbar pr-1">
@@ -1085,11 +1213,31 @@ export function RoyalHeraldryStudio({
           )}
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-0.5 text-[10px]">
-              <span>Vị trí X ({selectedLayer.x})</span>
+              <div className="flex items-center justify-between">
+                <span>Vị trí X</span>
+                <input
+                  type="number"
+                  min={60}
+                  max={540}
+                  value={selectedLayer.x}
+                  onChange={(e) => updateLayer(selectedLayer.id, { x: Number(e.target.value) })}
+                  className="w-14 rounded border border-white/15 bg-[#101522] px-1 text-right font-mono text-[10px]"
+                />
+              </div>
               <input type="range" min={80} max={520} value={selectedLayer.x} onChange={(e) => updateLayer(selectedLayer.id, { x: Number(e.target.value) })} className="w-full" />
             </label>
             <label className="space-y-0.5 text-[10px]">
-              <span>Vị trí Y ({selectedLayer.y})</span>
+              <div className="flex items-center justify-between">
+                <span>Vị trí Y</span>
+                <input
+                  type="number"
+                  min={60}
+                  max={540}
+                  value={selectedLayer.y}
+                  onChange={(e) => updateLayer(selectedLayer.id, { y: Number(e.target.value) })}
+                  className="w-14 rounded border border-white/15 bg-[#101522] px-1 text-right font-mono text-[10px]"
+                />
+              </div>
               <input type="range" min={80} max={520} value={selectedLayer.y} onChange={(e) => updateLayer(selectedLayer.id, { y: Number(e.target.value) })} className="w-full" />
             </label>
             <label className="space-y-0.5 text-[10px]">
@@ -1100,6 +1248,47 @@ export function RoyalHeraldryStudio({
               <span>Xoay ({selectedLayer.rotation}°)</span>
               <input type="range" min={-180} max={180} value={selectedLayer.rotation} onChange={(e) => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} className="w-full" />
             </label>
+          </div>
+
+          {/* Smart Alignment & Symmetry Mirror */}
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              type="button"
+              onClick={() => updateLayer(selectedLayer.id, { x: 300 })}
+              className="py-1 rounded-lg border border-[var(--border-subtle)] hover:border-[#C6A568] inline-flex items-center justify-center gap-1 text-[10px] cursor-pointer"
+              title="Căn giữa ngang X=300"
+            >
+              <AlignCenterHorizontal className="w-3 h-3 text-[#C6A568]" /> Giữa X
+            </button>
+            <button
+              type="button"
+              onClick={() => updateLayer(selectedLayer.id, { y: 295 })}
+              className="py-1 rounded-lg border border-[var(--border-subtle)] hover:border-[#C6A568] inline-flex items-center justify-center gap-1 text-[10px] cursor-pointer"
+              title="Căn giữa dọc Y=295"
+            >
+              <AlignCenterVertical className="w-3 h-3 text-[#C6A568]" /> Giữa Y
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                commitDesign((d) => {
+                  const mirrorX = Math.max(60, Math.min(540, 600 - selectedLayer.x));
+                  d.layers.push({
+                    ...structuredClone(selectedLayer),
+                    id: `lyr-sym-mirror-${Date.now()}`,
+                    name: `${selectedLayer.name} (Đối xứng)`,
+                    x: mirrorX === selectedLayer.x ? Math.min(520, selectedLayer.x + 60) : mirrorX,
+                    flipX: !selectedLayer.flipX,
+                    groupId: selectedLayer.groupId || `grp-${Date.now()}`
+                  });
+                  return d;
+                })
+              }
+              className="py-1 rounded-lg border border-[var(--border-subtle)] hover:border-[#C6A568] inline-flex items-center justify-center gap-1 text-[10px] cursor-pointer"
+              title="Tạo bản đối xứng gương qua trục giữa"
+            >
+              <Copy className="w-3 h-3 text-[#C6A568]" /> Đối xứng
+            </button>
           </div>
 
           <label className="block space-y-0.5 text-[10px]">
@@ -1178,8 +1367,65 @@ export function RoyalHeraldryStudio({
             {statusMsg}
           </div>
         )}
+
+        {/* Royal Heraldry Studio V2 Unified Sub-Hub Navigation */}
+        <DraggableScrollArea ariaLabel="Các phân hệ Royal Heraldry Studio" innerClassName="flex gap-1.5 pt-1">
+          {(
+            [
+              ["composer", Shield, "Xưởng Quốc huy (2.400+)"],
+              ["flags", Flag, "Cờ & Biểu ngữ (450+)"],
+              ["evolution", History, "Tiến hóa & Hoàng tộc"],
+              ["regalia", Crown, "Bảo vật Hoàng gia"],
+              ["meanings", BookOpen, "Ý nghĩa Biểu tượng"],
+              ["gallery", ShieldCheck, "Triển lãm & So sánh"],
+              ["packs", Package, "Gói Mẫu & Pack"]
+            ] as const
+          ).map(([id, Icon, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setStudioModule(id)}
+              className={`shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl border text-xs inline-flex items-center gap-1.5 cursor-pointer transition ${
+                studioModule === id
+                  ? "border-[#C6A568] bg-[#C6A568] text-[#101522] font-bold shadow-sm"
+                  : "border-[#C6A568]/20 bg-[#101522]/70 text-[#E9DFC9]/85 hover:border-[#C6A568]/60"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" /> {label}
+            </button>
+          ))}
+        </DraggableScrollArea>
       </div>
 
+      {/* Sub-Studio Views */}
+      {studioModule === "flags" && (
+        <FlagBannerStudio
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          defaultKingdomId={linkedKingdomId}
+        />
+      )}
+
+      {studioModule !== "composer" && studioModule !== "flags" && (
+        <HeraldryExpansionHub
+          mode={studioModule}
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          savedDesigns={savedDesigns}
+          currentDesign={design}
+          onRefreshSaved={() => void loadSavedLibrary()}
+          onLoadDesignToCanvas={(data, meta) => {
+            commitDesign(() => structuredClone(data));
+            if (meta?.id) setDesignId(meta.id);
+            if (meta?.name) setDesignName(meta.name);
+            if (meta?.linkedKingdomId) setLinkedKingdomId(meta.linkedKingdomId);
+            setStudioModule("composer");
+          }}
+        />
+      )}
+
+      {studioModule === "composer" && (
+        <>
       {/* Mobile Panel Switcher */}
       {(isMobile || isTablet) && (
         <div className="grid grid-cols-3 gap-1.5 text-xs">
@@ -1221,6 +1467,7 @@ export function RoyalHeraldryStudio({
             <div className="w-full flex items-center justify-between text-[11px] text-[#8FA2B3]">
               <span>Kéo thả trực tiếp lớp đang chọn trên Canvas</span>
               <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setSnapToGrid((v) => !v)} className={`p-1.5 rounded-lg border cursor-pointer ${snapToGrid ? "border-[#C6A568] text-[#C6A568]" : "border-white/15"}`} title="Bật/tắt Snap-to-Grid (10px)"><Magnet className="w-3.5 h-3.5" /></button>
                 <button type="button" onClick={() => setShowGrid((v) => !v)} className={`p-1.5 rounded-lg border cursor-pointer ${showGrid ? "border-[#C6A568] text-[#C6A568]" : "border-white/15"}`} title="Bật/tắt lưới căn chỉnh"><Grid className="w-3.5 h-3.5" /></button>
                 <button type="button" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)))} className="p-1.5 rounded-lg border border-white/15 cursor-pointer"><ZoomOut className="w-3.5 h-3.5" /></button>
                 <span className="font-mono w-10 text-center">{Math.round(zoom * 100)}%</span>
@@ -1258,6 +1505,8 @@ export function RoyalHeraldryStudio({
           </div>
         ) : null}
       </div>
+        </>
+      )}
 
       {/* Large Template Preview Modal */}
       {previewTpl && (
