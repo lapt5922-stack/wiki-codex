@@ -13,6 +13,11 @@ import { DirectImageUploadField } from "../DirectImageUploadField";
 import { MultiImageGalleryUploader } from "../MultiImageGalleryUploader";
 import { useDraftAutoSave } from "@/lib/use-draft-autosave";
 import { DraggableScrollArea } from "../DraggableScrollArea";
+import {
+  FreeformTabBlocksEditor,
+  ProfileTabCrudBar
+} from "../CustomProfileLayoutBuilder";
+import type { EntityProfileLayoutConfig } from "@/lib/empty-field-engine";
 
 interface KingdomEditorModalProps {
   dossier: KingdomHydratedDossier;
@@ -21,7 +26,17 @@ interface KingdomEditorModalProps {
   onSaved: (updated: KingdomHydratedDossier) => void;
 }
 
-type KEditTab = "identity" | "geo_gov" | "royalty_econ" | "mil_tech_cul" | "stats_events" | "custom";
+type BuiltInKEditTab = "identity" | "geo_gov" | "royalty_econ" | "mil_tech_cul" | "stats_events" | "custom";
+type KEditTab = BuiltInKEditTab | string;
+
+const K_EDIT_TABS: Array<{ id: BuiltInKEditTab; label: string }> = [
+  { id: "identity", label: "1. Nhận diện & Biểu tượng" },
+  { id: "geo_gov", label: "2. Địa lý & Chính quyền" },
+  { id: "royalty_econ", label: "3. Hoàng gia (CHAR-ID) & Kinh tế" },
+  { id: "mil_tech_cul", label: "4. Quân sự, Công nghệ & Văn hóa" },
+  { id: "stats_events", label: "5. 14 Chỉ số & Lịch sử" },
+  { id: "custom", label: "6. Trường động & Tùy chỉnh" }
+];
 
 export function KingdomEditorModal({
   dossier,
@@ -86,31 +101,53 @@ export function KingdomEditorModal({
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-xs">
-          <DraggableScrollArea ariaLabel="Nhóm dữ liệu vương quốc" innerClassName="flex gap-1.5">
-            {(
-              [
-                ["identity", "1. Nhận diện & Biểu tượng"],
-                ["geo_gov", "2. Địa lý & Chính quyền"],
-                ["royalty_econ", "3. Hoàng gia (CHAR-ID) & Kinh tế"],
-                ["mil_tech_cul", "4. Quân sự, Công nghệ & Văn hóa"],
-                ["stats_events", "5. 14 Chỉ số & Lịch sử"],
-                ["custom", "6. Trường động"]
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={`shrink-0 min-h-[36px] px-3 py-1.5 rounded-lg font-medium cursor-pointer ${
-                  tab === id ? "bg-[var(--accent)] text-[#090e1c] font-bold" : "bg-[var(--bg-surface)] text-[var(--text-secondary)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </DraggableScrollArea>
-        </div>
+        {(() => {
+          const layout: EntityProfileLayoutConfig = draft.kingdom.profileLayout || {};
+          const setLayout = (next: EntityProfileLayoutConfig) =>
+            setDraft({ ...draft, kingdom: { ...draft.kingdom, profileLayout: next } });
+          const hiddenSet = new Set(layout.hiddenBuiltInTabs || []);
+          const renamedMap = layout.renamedBuiltInTabs || {};
+          const visibleBuiltIn = K_EDIT_TABS.filter((t) => !hiddenSet.has(t.id)).map((t) => ({
+            id: t.id,
+            label: renamedMap[t.id] || t.label,
+            isBuiltIn: true
+          }));
+          const customTabs = (layout.customTabs || []).map((ct) => ({
+            id: ct.id,
+            label: `${ct.sigil || "✦"} ${ct.label}`,
+            isBuiltIn: false
+          }));
+          const allTabs = [...visibleBuiltIn, ...customTabs];
+          const activeMeta =
+            allTabs.find((x) => x.id === tab) || allTabs[0] || { id: "identity", label: "1. Nhận diện", isBuiltIn: true };
+
+          return (
+            <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-xs space-y-2">
+              <DraggableScrollArea ariaLabel="Nhóm dữ liệu vương quốc" innerClassName="flex gap-1.5">
+                {allTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`shrink-0 min-h-[36px] px-3 py-1.5 rounded-lg font-medium cursor-pointer ${
+                      tab === t.id ? "bg-[var(--accent)] text-[#090e1c] font-bold" : "bg-[var(--bg-surface)] text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </DraggableScrollArea>
+              <ProfileTabCrudBar
+                activeTabId={activeMeta.id}
+                activeTabLabel={activeMeta.label}
+                isBuiltIn={activeMeta.isBuiltIn}
+                layout={layout}
+                onChangeLayout={setLayout}
+                onSelectTab={(nextId) => setTab(nextId)}
+              />
+            </div>
+          );
+        })()}
 
         {autoDraft.hasSavedDraft && (
           <div className="mx-4 mt-3 rounded-lg bg-amber-500/15 border border-amber-500/40 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-2">
@@ -390,14 +427,42 @@ export function KingdomEditorModal({
           )}
 
           {tab === "custom" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {customFieldDefs.map((def) => (
-                <div key={def.id}>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">[{def.groupName}] {def.label}</label>
-                  <input value={String(customValues[def.id] ?? "")} onChange={(e) => setCustomValues({ ...customValues, [def.id]: e.target.value })} className={inputCls} />
+            <div className="space-y-4">
+              {customFieldDefs.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {customFieldDefs.map((def) => (
+                    <div key={def.id}>
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">[{def.groupName}] {def.label}</label>
+                      <input value={String(customValues[def.id] ?? "")} onChange={(e) => setCustomValues({ ...customValues, [def.id]: e.target.value })} className={inputCls} />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              <FreeformTabBlocksEditor
+                workspaceId={draft.kingdom.workspaceId}
+                tabId="sources"
+                tabTitle="Trường & Khối Tùy chỉnh Quốc gia"
+                layout={draft.kingdom.profileLayout || {}}
+                onChangeLayout={(next) =>
+                  setDraft({ ...draft, kingdom: { ...draft.kingdom, profileLayout: next } })
+                }
+              />
             </div>
+          )}
+
+          {!K_EDIT_TABS.some((t) => t.id === tab) && (
+            <FreeformTabBlocksEditor
+              workspaceId={draft.kingdom.workspaceId}
+              tabId={tab}
+              tabTitle={
+                (draft.kingdom.profileLayout?.customTabs || []).find((ct) => ct.id === tab)?.label ||
+                "Tab Tùy chỉnh Quốc gia"
+              }
+              layout={draft.kingdom.profileLayout || {}}
+              onChangeLayout={(next) =>
+                setDraft({ ...draft, kingdom: { ...draft.kingdom, profileLayout: next } })
+              }
+            />
           )}
         </div>
 

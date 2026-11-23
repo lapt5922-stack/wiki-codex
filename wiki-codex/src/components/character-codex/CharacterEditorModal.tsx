@@ -43,6 +43,16 @@ import { WORLD_CURRENCIES } from "@/lib/economy-engine";
 import { DirectImageUploadField } from "../DirectImageUploadField";
 import { MultiImageGalleryUploader } from "../MultiImageGalleryUploader";
 import { DraggableScrollArea } from "../DraggableScrollArea";
+import {
+  FreeformTabBlocksEditor,
+  ProfileTabCrudBar
+} from "../CustomProfileLayoutBuilder";
+import {
+  type CustomProfileBlock,
+  type CustomProfileFieldItem,
+  type EntityProfileLayoutConfig,
+  isMeaningfulValue
+} from "@/lib/empty-field-engine";
 
 interface CharacterEditorModalProps {
   workspaceId: string;
@@ -53,7 +63,7 @@ interface CharacterEditorModalProps {
   onSaved: (dossier: CharacterHydratedDossier) => void;
 }
 
-type EditorTab =
+type BuiltInEditorTab =
   | "identity"
   | "appearance"
   | "personality"
@@ -67,7 +77,9 @@ type EditorTab =
   | "gallery_sources"
   | "custom";
 
-const EDITOR_TABS: Array<{ id: EditorTab; label: string }> = [
+type EditorTab = BuiltInEditorTab | string;
+
+const EDITOR_TABS: Array<{ id: BuiltInEditorTab; label: string }> = [
   { id: "identity", label: "1. Nhận diện" },
   { id: "appearance", label: "2. Ngoại hình" },
   { id: "personality", label: "3. Tính cách" },
@@ -120,6 +132,105 @@ function splitComma(s: string): string[] {
   return s.split(",").map((x) => x.trim()).filter(Boolean);
 }
 
+/**
+ * Hydrates initial EntityProfileLayoutConfig from existing character data,
+ * automatically converting legacy rigid appearances/personalities into 100% editable Freeform Blocks
+ * if no blocks exist yet for those tabs (zero data loss!).
+ */
+function buildInitialProfileLayout(dossier?: CharacterHydratedDossier | null): EntityProfileLayoutConfig {
+  const existing = dossier?.character?.profileLayout
+    ? structuredClone(dossier.character.profileLayout)
+    : {};
+  const blocks: CustomProfileBlock[] = Array.isArray(existing.blocks) ? [...existing.blocks] : [];
+
+  if (dossier && !blocks.some((b) => b.tabId === "appearance") && dossier.appearances?.length > 0) {
+    dossier.appearances.forEach((ap, idx) => {
+      const fields: CustomProfileFieldItem[] = [];
+      const pushIf = (label: string, val: string, kind: "text" | "markdown" = "text", pin = false) => {
+        if (isMeaningfulValue(val)) {
+          fields.push({ id: `ap-f-${idx}-${fields.length}`, label, kind, value: val, pinToInfobox: pin });
+        }
+      };
+      pushIf("Mô tả tổng quan ngoại hình", ap.description, "markdown");
+      pushIf("Tuổi / Thời kỳ", [ap.ageAtStage, ap.timePeriod].filter(Boolean).join(" · "));
+      pushIf("Chiều cao", ap.height, "text", true);
+      pushIf("Cân nặng", ap.weight, "text", true);
+      pushIf("Màu tóc & Kiểu tóc", [ap.hairColor, ap.hairStyle].filter(Boolean).join(" · "));
+      pushIf("Màu mắt & Màu da", [ap.eyeColor, ap.skinTone].filter(Boolean).join(" · "));
+      pushIf("Khuôn mặt & Thể hình", [ap.faceFeatures, ap.physique].filter(Boolean).join(" · "));
+      pushIf("Vết sẹo / Hình xăm / Ấn ký", [ap.scars, ap.tattoos, ap.distinguishingMarks].filter(Boolean).join(" · "));
+      pushIf("Trang phục thường ngày", ap.casualOutfit);
+      pushIf("Trang phục chiến đấu", ap.combatOutfit);
+      pushIf("Trang phục nghi lễ", ap.ceremonialOutfit);
+      pushIf("Phụ kiện & Biểu tượng", [ap.accessories, ap.personalEmblem].filter(Boolean).join(" · "));
+      pushIf("Khí chất & Giọng nói", [ap.demeanor, ap.voice].filter(Boolean).join(" · "));
+      if (isMeaningfulValue(ap.imageUrl)) {
+        fields.push({
+          id: `ap-img-${idx}`,
+          label: "Ảnh minh họa ngoại hình",
+          kind: "image_card",
+          value: "",
+          imageUrl: ap.imageUrl,
+          imageCaption: ap.stageName
+        });
+      }
+      if (fields.length > 0) {
+        blocks.push({
+          id: ap.id || `ap-blk-${idx}`,
+          tabId: "appearance",
+          title: ap.stageName || `Ngoại hình #${idx + 1}`,
+          order: idx + 1,
+          accessLevel: ap.accessLevel || "public",
+          fields
+        });
+      }
+    });
+  }
+
+  if (dossier && !blocks.some((b) => b.tabId === "personality") && dossier.personalities?.length > 0) {
+    dossier.personalities.forEach((per, idx) => {
+      const fields: CustomProfileFieldItem[] = [];
+      const pushText = (label: string, val: string, kind: "text" | "markdown" = "markdown") => {
+        if (isMeaningfulValue(val)) {
+          fields.push({ id: `per-f-${idx}-${fields.length}`, label, kind, value: val });
+        }
+      };
+      const pushTags = (label: string, arr: string[]) => {
+        if (Array.isArray(arr) && arr.some((x) => isMeaningfulValue(x))) {
+          fields.push({ id: `per-t-${idx}-${fields.length}`, label, kind: "tag_list", value: "", tags: arr });
+        }
+      };
+      pushText("Tính cách cốt lõi", per.corePersonality, "markdown");
+      pushTags("Ưu điểm", per.strengths);
+      pushTags("Nhược điểm", per.weaknesses);
+      pushText("Động cơ & Mục tiêu", [per.motivations, per.shortTermGoals, per.longTermGoals].filter(Boolean).join(" · "));
+      pushText("Triết lý sống & Niềm tin", [per.lifePhilosophy, per.beliefs, per.personalPrinciples].filter(Boolean).join(" · "));
+      pushTags("Sở thích & Thói quen", [...(per.likes || []), ...(per.habits ? [per.habits] : [])]);
+      pushTags("Nỗi sợ & Điều ghét", [...(per.fears || []), ...(per.dislikes || [])]);
+      pushText("Mâu thuẫn nội tâm", per.internalConflict);
+      pushText("Phản ứng khi nguy hiểm / áp lực", [per.dangerReaction, per.pressureReaction].filter(Boolean).join(" · "), "text");
+      if (fields.length > 0) {
+        blocks.push({
+          id: per.id || `per-blk-${idx}`,
+          tabId: "personality",
+          title: [per.stageName, per.periodLabel].filter(Boolean).join(" — ") || `Tính cách #${idx + 1}`,
+          order: idx + 1,
+          accessLevel: per.accessLevel || "public",
+          fields
+        });
+      }
+    });
+  }
+
+  return {
+    enableRpgStats: existing.enableRpgStats ?? Boolean(dossier?.character?.id),
+    hiddenBuiltInTabs: existing.hiddenBuiltInTabs || [],
+    renamedBuiltInTabs: existing.renamedBuiltInTabs || {},
+    customTabs: existing.customTabs || [],
+    blocks
+  };
+}
+
 export function CharacterEditorModal({
   workspaceId,
   initialDossier,
@@ -155,13 +266,13 @@ export function CharacterEditorModal({
           birthYear: null,
           deathYear: null,
           gender: "",
-          race: "Nhân tộc",
+          race: "",
           nationality: "",
           hometown: "",
           birthPlace: "",
           residence: "",
-          originWorld: "Aethelgard Prime",
-          currentWorld: "Aethelgard Prime",
+          originWorld: "",
+          currentWorld: "",
           occupation: "",
           position: "",
           rank: "",
@@ -224,6 +335,11 @@ export function CharacterEditorModal({
           }
         }
   );
+
+  const [profileLayout, setProfileLayout] = useState<EntityProfileLayoutConfig>(() =>
+    buildInitialProfileLayout(initialDossier)
+  );
+  const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
 
   // Sub-collections
   const [appearances, setAppearances] = useState<CharacterAppearanceStage[]>(
@@ -324,19 +440,17 @@ export function CharacterEditorModal({
       accessLevel: ContentAccessLevel;
     }>
   >(() =>
-    (initialDossier?.relationships || [])
-      .filter((r) => r.direction === "outgoing")
-      .map((r) => ({
-        id: r.relation.id,
-        characterBId: r.otherCharacter.id,
-        relationType: r.relation.relationType,
-        description: r.relation.description,
-        startDate: r.relation.startDate,
-        status: r.relation.status,
-        closeness: r.relation.closeness,
-        isBidirectional: r.relation.isBidirectional,
-        accessLevel: r.relation.accessLevel
-      }))
+    (initialDossier?.relationships || []).map((r) => ({
+      id: r.relation.id,
+      characterBId: r.otherCharacter.id,
+      relationType: r.relation.relationType,
+      description: r.relation.description,
+      startDate: r.relation.startDate,
+      status: r.relation.status,
+      closeness: r.relation.closeness,
+      isBidirectional: r.relation.isBidirectional,
+      accessLevel: r.relation.accessLevel
+    }))
   );
 
   const [affiliations, setAffiliations] = useState<
@@ -451,7 +565,7 @@ export function CharacterEditorModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workspaceId,
-          character: charData,
+          character: { ...charData, profileLayout },
           appearances,
           personalities,
           biographies,
@@ -532,27 +646,53 @@ export function CharacterEditorModal({
           </div>
         </div>
 
-        {/* Multi-Group Tab Ribbon (Drag with Mouse / Swipe / Scrollbar) */}
-        {!previewMode && (
-          <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60">
-            <DraggableScrollArea ariaLabel="Nhóm dữ liệu nhân vật" innerClassName="flex gap-1.5">
-              {EDITOR_TABS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={`shrink-0 min-h-[36px] px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                    tab === t.id
-                      ? "bg-[var(--accent)] text-[#090e1c] font-bold"
-                      : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--accent)] border border-[var(--border-subtle)]"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </DraggableScrollArea>
-          </div>
-        )}
+        {/* Multi-Group Tab Ribbon + Level 1 Tab CRUD Manager */}
+        {!previewMode && (() => {
+          const hiddenSet = new Set(profileLayout.hiddenBuiltInTabs || []);
+          const renamedMap = profileLayout.renamedBuiltInTabs || {};
+          const visibleBuiltIns = EDITOR_TABS.filter((t) => !hiddenSet.has(t.id)).map((t) => ({
+            id: t.id,
+            label: renamedMap[t.id] || t.label,
+            isBuiltIn: true
+          }));
+          const customTabs = (profileLayout.customTabs || []).map((ct) => ({
+            id: ct.id,
+            label: `${ct.sigil || "✦"} ${ct.label}`,
+            isBuiltIn: false
+          }));
+          const allVisibleTabs = [...visibleBuiltIns, ...customTabs];
+          const activeMeta =
+            allVisibleTabs.find((x) => x.id === tab) || allVisibleTabs[0] || { id: "identity", label: "1. Nhận diện", isBuiltIn: true };
+
+          return (
+            <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60 space-y-2">
+              <DraggableScrollArea ariaLabel="Nhóm dữ liệu nhân vật" innerClassName="flex gap-1.5">
+                {allVisibleTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`shrink-0 min-h-[36px] px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                      tab === t.id
+                        ? "bg-[var(--accent)] text-[#090e1c] font-bold"
+                        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--accent)] border border-[var(--border-subtle)]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </DraggableScrollArea>
+              <ProfileTabCrudBar
+                activeTabId={activeMeta.id}
+                activeTabLabel={activeMeta.label}
+                isBuiltIn={activeMeta.isBuiltIn}
+                layout={profileLayout}
+                onChangeLayout={setProfileLayout}
+                onSelectTab={(nextId) => setTab(nextId)}
+              />
+            </div>
+          );
+        })()}
 
         {/* Validation Error */}
         {error && (
@@ -752,10 +892,6 @@ export function CharacterEditorModal({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">URL Ảnh chân dung</label>
-                  <input value={charData.portraitUrl || ""} onChange={(e) => setCharData({ ...charData, portraitUrl: e.target.value })} className={inputCls} placeholder="https://..." />
-                </div>
-                <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">Biểu tượng &amp; Màu nhận diện</label>
                   <div className="flex items-center gap-2">
                     <input value={charData.symbol || "✦"} onChange={(e) => setCharData({ ...charData, symbol: e.target.value })} className="w-16 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1.5 text-center text-sm" />
@@ -770,143 +906,77 @@ export function CharacterEditorModal({
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">Tags (phân cách dấu phẩy)</label>
                   <input value={(charData.tags || []).join(", ")} onChange={(e) => setCharData({ ...charData, tags: splitComma(e.target.value) })} className={inputCls} />
                 </div>
+                <div>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Phân loại &amp; Liên kết Quốc gia</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input placeholder="Phân loại" value={charData.classification || ""} onChange={(e) => setCharData({ ...charData, classification: e.target.value })} className={inputCls} />
+                    <input placeholder="Mã Quốc gia (VD: KING-000001)" value={charData.linkedNationEntryId || ""} onChange={(e) => setCharData({ ...charData, linkedNationEntryId: e.target.value || null })} className={inputCls} />
+                  </div>
+                </div>
               </div>
+
+              {/* Collapsible Extended Identity Fields (100% Schema Coverage, Zero Clutter) */}
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/45 p-3 space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedIdentity((v) => !v)}
+                  className="text-xs font-semibold text-[#C6A568] hover:underline cursor-pointer"
+                >
+                  {showAdvancedIdentity
+                    ? "▾ Ẩn bớt trường Nhận diện mở rộng (Ngày/tháng sinh, Nơi sinh, Danh hiệu cổ đại, Thế giới, Spoiler...)"
+                    : "▸ Mở thêm trường Nhận diện mở rộng (Ngày/tháng sinh, Nơi sinh, Danh hiệu cổ đại, Thế giới, Spoiler...)"}
+                </button>
+                {showAdvancedIdentity && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input type="number" placeholder="Ngày sinh (1-31)" value={charData.birthDay ?? ""} onChange={(e) => setCharData({ ...charData, birthDay: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
+                      <input type="number" placeholder="Tháng sinh (1-12)" value={charData.birthMonth ?? ""} onChange={(e) => setCharData({ ...charData, birthMonth: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
+                    </div>
+                    <input placeholder="Ngày mất chi tiết (nếu có)" value={charData.deathDate || ""} onChange={(e) => setCharData({ ...charData, deathDate: e.target.value })} className={inputCls} />
+                    <input placeholder="Nơi sinh" value={charData.birthPlace || ""} onChange={(e) => setCharData({ ...charData, birthPlace: e.target.value })} className={inputCls} />
+                    <input placeholder="Danh hiệu cổ đại (phẩy)" value={(charData.ancientTitles || []).join(", ")} onChange={(e) => setCharData({ ...charData, ancientTitles: splitComma(e.target.value) })} className={inputCls} />
+                    <input placeholder="Danh hiệu lịch sử (phẩy)" value={(charData.historicalTitles || []).join(", ")} onChange={(e) => setCharData({ ...charData, historicalTitles: splitComma(e.target.value) })} className={inputCls} />
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input placeholder="Thế giới gốc" value={charData.originWorld || ""} onChange={(e) => setCharData({ ...charData, originWorld: e.target.value })} className={inputCls} />
+                      <input placeholder="Thế giới hiện tại" value={charData.currentWorld || ""} onChange={(e) => setCharData({ ...charData, currentWorld: e.target.value })} className={inputCls} />
+                    </div>
+                    <input placeholder="Cảnh báo Spoiler (nếu chọn Ẩn Spoiler)" value={charData.spoilerLabel || ""} onChange={(e) => setCharData({ ...charData, spoilerLabel: e.target.value })} className={`${inputCls} sm:col-span-2`} />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">Tóm tắt hồ sơ nhân vật</label>
                 <textarea rows={3} value={charData.summary || ""} onChange={(e) => setCharData({ ...charData, summary: e.target.value })} className={inputCls} />
               </div>
+
+              <FreeformTabBlocksEditor
+                workspaceId={workspaceId}
+                tabId="identity"
+                tabTitle="Nhận diện & Thông tin bổ sung"
+                layout={profileLayout}
+                onChangeLayout={setProfileLayout}
+                entityOptions={allCharacters.map((c) => ({ id: c.id, title: c.fullName }))}
+              />
             </div>
           ) : tab === "appearance" ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--accent)]">Các Giai đoạn Ngoại hình ({appearances.length})</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAppearances((prev) => [
-                      ...prev,
-                      {
-                        id: `app-${Date.now()}`,
-                        characterId: charData.id || "",
-                        stageName: `Giai đoạn #${prev.length + 1}`,
-                        ageAtStage: "",
-                        timePeriod: "",
-                        description: "",
-                        imageUrl: "",
-                        height: "",
-                        weight: "",
-                        hairColor: "",
-                        hairStyle: "",
-                        eyeColor: "",
-                        skinTone: "",
-                        faceFeatures: "",
-                        physique: "",
-                        distinguishingMarks: "",
-                        scars: "",
-                        tattoos: "",
-                        specialMarkings: "",
-                        voice: "",
-                        demeanor: "",
-                        casualOutfit: "",
-                        combatOutfit: "",
-                        ceremonialOutfit: "",
-                        specialOutfit: "",
-                        accessories: "",
-                        personalEmblem: "",
-                        changesNoted: "",
-                        isCurrent: prev.length === 0,
-                        accessLevel: "public",
-                        verificationStatus: "draft"
-                      }
-                    ])
-                  }
-                  className="px-3 py-1.5 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Thêm giai đoạn ngoại hình
-                </button>
-              </div>
-              {appearances.map((ap, idx) => (
-                <div key={ap.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <input value={ap.stageName} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, stageName: e.target.value } : x)))} className="font-semibold bg-transparent border-b border-[var(--border-subtle)] text-xs text-[var(--accent)] flex-1" placeholder="Tên giai đoạn" />
-                    <button type="button" onClick={() => setAppearances((p) => p.filter((_, i) => i !== idx))} className="text-rose-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <input placeholder="Tuổi" value={ap.ageAtStage} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, ageAtStage: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Chiều cao" value={ap.height} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, height: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Cân nặng" value={ap.weight} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, weight: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Màu tóc / mắt" value={ap.hairColor} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, hairColor: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Trang phục thường ngày" value={ap.casualOutfit} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, casualOutfit: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Trang phục chiến đấu" value={ap.combatOutfit} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, combatOutfit: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Sẹo / Hình xăm" value={ap.scars} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, scars: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Phong thái / Giọng nói" value={ap.demeanor} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, demeanor: e.target.value } : x)))} className={inputCls} />
-                  </div>
-                  <textarea rows={2} placeholder="Mô tả tổng quan ngoại hình giai đoạn này..." value={ap.description} onChange={(e) => setAppearances((p) => p.map((x, i) => (i === idx ? { ...x, description: e.target.value } : x)))} className={inputCls} />
-                </div>
-              ))}
-            </div>
+            <FreeformTabBlocksEditor
+              workspaceId={workspaceId}
+              tabId="appearance"
+              tabTitle="Ngoại hình & Diện mạo"
+              layout={profileLayout}
+              onChangeLayout={setProfileLayout}
+              entityOptions={allCharacters.map((c) => ({ id: c.id, title: c.fullName }))}
+            />
           ) : tab === "personality" ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--accent)]">Tính cách &amp; Phát triển Tâm lý ({personalities.length})</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPersonalities((prev) => [
-                      ...prev,
-                      {
-                        id: `per-${Date.now()}`,
-                        characterId: charData.id || "",
-                        stageName: `Giai đoạn Tâm lý #${prev.length + 1}`,
-                        periodLabel: "",
-                        corePersonality: "",
-                        strengths: [],
-                        weaknesses: [],
-                        likes: [],
-                        dislikes: [],
-                        fears: [],
-                        motivations: "",
-                        shortTermGoals: "",
-                        longTermGoals: "",
-                        beliefs: "",
-                        lifePhilosophy: "",
-                        personalPrinciples: "",
-                        habits: "",
-                        psychologyProfile: "",
-                        dangerReaction: "",
-                        pressureReaction: "",
-                        communicationStyle: "",
-                        emotionalControl: "",
-                        internalConflict: "",
-                        psychologicalGrowth: "",
-                        isCurrent: prev.length === 0,
-                        accessLevel: "public",
-                        verificationStatus: "draft"
-                      }
-                    ])
-                  }
-                  className="px-3 py-1.5 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Thêm giai đoạn tâm lý
-                </button>
-              </div>
-              {personalities.map((per, idx) => (
-                <div key={per.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <input value={per.stageName} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, stageName: e.target.value } : x)))} className="font-semibold bg-transparent border-b border-[var(--border-subtle)] text-xs text-[var(--accent)] flex-1" />
-                    <button type="button" onClick={() => setPersonalities((p) => p.filter((_, i) => i !== idx))} className="text-rose-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input placeholder="Tính cách cốt lõi" value={per.corePersonality} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, corePersonality: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Động lực chính" value={per.motivations} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, motivations: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Ưu điểm (phân cách phẩy)" value={per.strengths.join(", ")} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, strengths: splitComma(e.target.value) } : x)))} className={inputCls} />
-                    <input placeholder="Khuyết điểm (phân cách phẩy)" value={per.weaknesses.join(", ")} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, weaknesses: splitComma(e.target.value) } : x)))} className={inputCls} />
-                    <input placeholder="Triết lý sống" value={per.lifePhilosophy} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, lifePhilosophy: e.target.value } : x)))} className={inputCls} />
-                    <input placeholder="Mâu thuẫn nội tâm" value={per.internalConflict} onChange={(e) => setPersonalities((p) => p.map((x, i) => (i === idx ? { ...x, internalConflict: e.target.value } : x)))} className={inputCls} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <FreeformTabBlocksEditor
+              workspaceId={workspaceId}
+              tabId="personality"
+              tabTitle="Tính cách & Tâm lý"
+              layout={profileLayout}
+              onChangeLayout={setProfileLayout}
+              entityOptions={allCharacters.map((c) => ({ id: c.id, title: c.fullName }))}
+            />
           ) : tab === "biography" ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -965,56 +1035,88 @@ export function CharacterEditorModal({
             </div>
           ) : tab === "abilities" ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-[#C6A568]/35 bg-[#101522]/80 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Cấp độ (Level)</label>
-                  <input type="number" value={ability.level} onChange={(e) => setAbility({ ...ability, level: Number(e.target.value) || 1 })} className={inputCls} />
+                  <div className="font-bold text-[#C6A568]">Chế độ Hệ thống 13 Chỉ số &amp; Cấp độ RPG</div>
+                  <div className="text-[11px] text-[#AEB7C4]">
+                    Tắt mục này nếu nhân vật thuộc nhóm học giả, quý tộc, chính trị gia không dùng thanh HP/MP/STR.
+                  </div>
                 </div>
+                <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#C6A568]/20 border border-[#C6A568]/50 font-bold text-[#E9DFC9] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(profileLayout.enableRpgStats)}
+                    onChange={(e) =>
+                      setProfileLayout({ ...profileLayout, enableRpgStats: e.target.checked })
+                    }
+                    className="accent-[#C6A568]"
+                  />
+                  <span>Hiển thị Chỉ số RPG</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {profileLayout.enableRpgStats && (
+                  <div>
+                    <label className="block text-[11px] text-[var(--text-muted)] mb-1">Cấp độ (Level)</label>
+                    <input type="number" value={ability.level} onChange={(e) => setAbility({ ...ability, level: Number(e.target.value) || 1 })} className={inputCls} />
+                  </div>
+                )}
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Cảnh giới</label>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Cảnh giới / Cấp bậc chuyên môn</label>
                   <input value={ability.realm} onChange={(e) => setAbility({ ...ability, realm: e.target.value })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Bậc sức mạnh</label>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Bậc sức mạnh / Tầm vóc</label>
                   <input value={ability.powerTier} onChange={(e) => setAbility({ ...ability, powerTier: e.target.value })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Hệ thống năng lượng</label>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Hệ thống năng lượng / Học thuật</label>
                   <input value={ability.energySystem} onChange={(e) => setAbility({ ...ability, energySystem: e.target.value })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Nguyên tố (phẩy)</label>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Nguyên tố / Chuyên ngành (phẩy)</label>
                   <input value={ability.elements.join(", ")} onChange={(e) => setAbility({ ...ability, elements: splitComma(e.target.value) })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Huyết thống</label>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Huyết thống / Thiên phú</label>
                   <input value={ability.bloodline} onChange={(e) => setAbility({ ...ability, bloodline: e.target.value })} className={inputCls} />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
-                <div className="text-xs font-semibold text-[var(--accent)] mb-2">13 Chỉ số Cơ bản (Chỉnh sửa trực tiếp — chỉ lưu khi bạn xác nhận)</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {STAT_FIELDS.map((sf) => (
-                    <div key={sf.key}>
-                      <label className="block text-[10px] text-[var(--text-muted)] mb-0.5">{sf.label}</label>
-                      <input
-                        type="number"
-                        value={ability.stats[sf.key]}
-                        onChange={(e) =>
-                          setAbility({
-                            ...ability,
-                            stats: { ...ability.stats, [sf.key]: Number(e.target.value) || 0 }
-                          })
-                        }
-                        className={`${inputCls} font-mono`}
-                      />
-                    </div>
-                  ))}
+              {profileLayout.enableRpgStats && (
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
+                  <div className="text-xs font-semibold text-[var(--accent)] mb-2">13 Chỉ số Cơ bản (Chỉnh sửa trực tiếp)</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {STAT_FIELDS.map((sf) => (
+                      <div key={sf.key}>
+                        <label className="block text-[10px] text-[var(--text-muted)] mb-0.5">{sf.label}</label>
+                        <input
+                          type="number"
+                          value={ability.stats[sf.key]}
+                          onChange={(e) =>
+                            setAbility({
+                              ...ability,
+                              stats: { ...ability.stats, [sf.key]: Number(e.target.value) || 0 }
+                            })
+                          }
+                          className={`${inputCls} font-mono`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Năng lực bẩm sinh &amp; Thức tỉnh (phẩy)</label>
+                  <input value={ability.innateAbilities.join(", ")} onChange={(e) => setAbility({ ...ability, innateAbilities: splitComma(e.target.value) })} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">Kháng tính &amp; Miễn nhiễm (phẩy)</label>
+                  <input value={ability.resistances.join(", ")} onChange={(e) => setAbility({ ...ability, resistances: splitComma(e.target.value) })} className={inputCls} />
+                </div>
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">Điểm yếu (phẩy)</label>
                   <input value={ability.weaknesses.join(", ")} onChange={(e) => setAbility({ ...ability, weaknesses: splitComma(e.target.value) })} className={inputCls} />
@@ -1024,6 +1126,15 @@ export function CharacterEditorModal({
                   <input value={ability.powerLimits} onChange={(e) => setAbility({ ...ability, powerLimits: e.target.value })} className={inputCls} />
                 </div>
               </div>
+
+              <FreeformTabBlocksEditor
+                workspaceId={workspaceId}
+                tabId="abilities"
+                tabTitle="Năng lực & Chuyên môn mở rộng"
+                layout={profileLayout}
+                onChangeLayout={setProfileLayout}
+                entityOptions={allCharacters.map((c) => ({ id: c.id, title: c.fullName }))}
+              />
             </div>
           ) : tab === "skills" ? (
             <div className="space-y-3">
@@ -1074,9 +1185,15 @@ export function CharacterEditorModal({
             </div>
           ) : tab === "combat_equip" ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <input placeholder="Phong cách chiến đấu" value={charData.combat?.combatStyle || ""} onChange={(e) => setCharData({ ...charData, combat: { ...charData.combat!, combatStyle: e.target.value } })} className={inputCls} />
                 <input placeholder="Trường phái / Võ thuật" value={charData.combat?.schoolOrDiscipline || ""} onChange={(e) => setCharData({ ...charData, combat: { ...charData.combat!, schoolOrDiscipline: e.target.value } })} className={inputCls} />
+                <input placeholder="Vũ khí thành thạo (phẩy)" value={(charData.combat?.masteredWeapons || []).join(", ")} onChange={(e) => setCharData({ ...charData, combat: { ...charData.combat!, masteredWeapons: splitComma(e.target.value) } })} className={inputCls} />
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input type="number" placeholder="Số trận thắng" value={charData.combat?.victoriesCount || ""} onChange={(e) => setCharData({ ...charData, combat: { ...charData.combat!, victoriesCount: Number(e.target.value) || 0 } })} className={inputCls} />
+                  <input type="number" placeholder="Số trận bại" value={charData.combat?.defeatsCount || ""} onChange={(e) => setCharData({ ...charData, combat: { ...charData.combat!, defeatsCount: Number(e.target.value) || 0 } })} className={inputCls} />
+                </div>
+                <input placeholder="Chiến công quân sự nổi bật" value={charData.combat?.militaryAchievements || ""} onChange={(e) => setCharData({ ...charData, combat: { ...charData.combat!, militaryAchievements: e.target.value } })} className={`${inputCls} sm:col-span-2`} />
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
                 <span className="text-xs font-semibold text-[var(--accent)]">Trang bị &amp; Vật phẩm ({equipment.length})</span>
@@ -1282,6 +1399,79 @@ export function CharacterEditorModal({
                   </div>
                 </div>
               ))}
+
+              {/* Group 10: Social Standing & Group 15: Trivia / Hobbies (Previously missing in Form!) */}
+              <div className="pt-3 border-t border-[var(--border-subtle)] space-y-2.5">
+                <span className="text-xs font-semibold text-[var(--accent)]">Địa vị Xã hội, Sở thích &amp; Thông tin Bên lề</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <input
+                    placeholder="Danh tiếng / Uy望 xã hội"
+                    value={charData.socialStanding?.reputation || ""}
+                    onChange={(e) =>
+                      setCharData({
+                        ...charData,
+                        socialStanding: { ...charData.socialStanding!, reputation: e.target.value }
+                      })
+                    }
+                    className={inputCls}
+                  />
+                  <input
+                    placeholder="Sở thích (phân cách phẩy)"
+                    value={(charData.trivia?.hobbies || []).join(", ")}
+                    onChange={(e) =>
+                      setCharData({
+                        ...charData,
+                        trivia: { ...charData.trivia!, hobbies: splitComma(e.target.value) }
+                      })
+                    }
+                    className={inputCls}
+                  />
+                  <input
+                    placeholder="Món ăn yêu thích"
+                    value={charData.trivia?.favoriteFood || ""}
+                    onChange={(e) =>
+                      setCharData({
+                        ...charData,
+                        trivia: { ...charData.trivia!, favoriteFood: e.target.value }
+                      })
+                    }
+                    className={inputCls}
+                  />
+                  <input
+                    placeholder="Màu sắc yêu thích"
+                    value={charData.trivia?.favoriteColor || ""}
+                    onChange={(e) =>
+                      setCharData({
+                        ...charData,
+                        trivia: { ...charData.trivia!, favoriteColor: e.target.value }
+                      })
+                    }
+                    className={inputCls}
+                  />
+                  <input
+                    placeholder="Gu âm nhạc / Nghệ thuật"
+                    value={charData.trivia?.musicTaste || ""}
+                    onChange={(e) =>
+                      setCharData({
+                        ...charData,
+                        trivia: { ...charData.trivia!, musicTaste: e.target.value }
+                      })
+                    }
+                    className={inputCls}
+                  />
+                  <input
+                    placeholder="Thói quen đời thường (phẩy)"
+                    value={(charData.trivia?.habits || []).join(", ")}
+                    onChange={(e) =>
+                      setCharData({
+                        ...charData,
+                        trivia: { ...charData.trivia!, habits: splitComma(e.target.value) }
+                      })
+                    }
+                    className={inputCls}
+                  />
+                </div>
+              </div>
             </div>
           ) : tab === "gallery_sources" ? (
             <div className="space-y-4">
@@ -1329,13 +1519,13 @@ export function CharacterEditorModal({
                 </div>
               ))}
             </div>
-          ) : (
+          ) : tab === "custom" ? (
             <div className="space-y-3">
               <div className="text-xs font-semibold text-[var(--accent)]">
                 Trường Dữ liệu Tùy biến của Không gian ({customFieldDefs.length})
               </div>
               {customFieldDefs.length === 0 ? (
-                <p className="text-xs text-[var(--text-muted)]">Chưa có trường tùy biến nào. Bạn có thể tạo trong mục Quản lý Trường Tùy biến.</p>
+                <p className="text-xs text-[var(--text-muted)]">Chưa có trường tùy biến cấp Không gian nào.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {customFieldDefs.map((def) => (
@@ -1360,7 +1550,27 @@ export function CharacterEditorModal({
                   ))}
                 </div>
               )}
+              <FreeformTabBlocksEditor
+                workspaceId={workspaceId}
+                tabId="custom"
+                tabTitle="Trường & Khối Tùy biến Riêng"
+                layout={profileLayout}
+                onChangeLayout={setProfileLayout}
+                entityOptions={allCharacters.map((c) => ({ id: c.id, title: c.fullName }))}
+              />
             </div>
+          ) : (
+            <FreeformTabBlocksEditor
+              workspaceId={workspaceId}
+              tabId={tab}
+              tabTitle={
+                (profileLayout.customTabs || []).find((ct) => ct.id === tab)?.label ||
+                "Tab Tùy chỉnh"
+              }
+              layout={profileLayout}
+              onChangeLayout={setProfileLayout}
+              entityOptions={allCharacters.map((c) => ({ id: c.id, title: c.fullName }))}
+            />
           )}
         </div>
 

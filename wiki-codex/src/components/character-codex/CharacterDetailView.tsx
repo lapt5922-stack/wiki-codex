@@ -40,6 +40,17 @@ import { useDeviceUI } from "@/lib/device-ui";
 import { DraggableScrollArea } from "../DraggableScrollArea";
 import { toggleCodexBookmark } from "../BookmarksDrawer";
 import { exportShareableCodexCardPng } from "@/lib/codex-card-exporter";
+import {
+  filterMeaningfulRows,
+  isCustomFieldMeaningful,
+  isMeaningfulValue,
+  joinMeaningfulParts
+} from "@/lib/empty-field-engine";
+import {
+  CustomProfileBlocksRenderer,
+  getPinnedInfoboxRows
+} from "../CustomProfileLayoutBuilder";
+import { ImageLightboxModal, type LightboxImageItem } from "../ImageLightboxModal";
 
 interface CharacterDetailViewProps {
   characterId: string;
@@ -51,7 +62,7 @@ interface CharacterDetailViewProps {
   onOpenNationEntry?: (entryId: string) => void;
 }
 
-type DetailTab =
+type BuiltInDetailTab =
   | "overview"
   | "biography"
   | "appearance"
@@ -67,7 +78,9 @@ type DetailTab =
   | "gallery"
   | "lore";
 
-const DETAIL_TABS: Array<{ id: DetailTab; label: string }> = [
+type DetailTab = BuiltInDetailTab | string;
+
+const DETAIL_TABS: Array<{ id: BuiltInDetailTab; label: string }> = [
   { id: "overview", label: "Tổng quan" },
   { id: "biography", label: "Tiểu sử" },
   { id: "appearance", label: "Ngoại hình" },
@@ -168,7 +181,10 @@ export function CharacterDetailView({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [timelineEraFilter, setTimelineEraFilter] = useState("all");
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxState, setLightboxState] = useState<{
+    items: LightboxImageItem[];
+    index: number;
+  } | null>(null);
 
   async function loadDetail() {
     setLoading(true);
@@ -258,8 +274,66 @@ export function CharacterDetailView({
 
   const c = dossier.character;
   const ab = dossier.ability;
+  const layout = c.profileLayout;
+  const showRpgStats = layout?.enableRpgStats !== false;
   const rarity = RARITY_STYLES[c.rarity] || RARITY_STYLES.common;
   const verify = VERIFY_LABELS[c.verificationStatus] || VERIFY_LABELS.draft;
+
+  // Collect all meaningful images across Portrait, Cover, Appearance Stages, Custom Blocks, and Gallery
+  const allCharacterImages: LightboxImageItem[] = [
+    ...(isMeaningfulValue(c.portraitUrl)
+      ? [{ url: c.portraitUrl, title: `${c.fullName} — Chân dung`, category: "Ảnh đại diện" }]
+      : []),
+    ...(isMeaningfulValue(c.coverUrl)
+      ? [{ url: c.coverUrl, title: `${c.fullName} — Ảnh bìa`, category: "Ảnh bìa" }]
+      : []),
+    ...dossier.appearances
+      .filter((a) => isMeaningfulValue(a.imageUrl))
+      .map((a) => ({
+        url: a.imageUrl,
+        title: `${c.fullName} — ${a.stageName}`,
+        caption: a.description,
+        category: "Ngoại hình"
+      })),
+    ...((layout?.blocks || []).flatMap((b) =>
+      b.fields
+        .filter((f) => f.kind === "image_card" && isMeaningfulValue(f.imageUrl))
+        .map((f) => ({
+          url: f.imageUrl!,
+          title: f.label,
+          caption: f.imageCaption,
+          source: f.imageSource,
+          category: b.title
+        }))
+    )),
+    ...dossier.images
+      .filter((img) => isMeaningfulValue(img.url))
+      .map((img) => ({
+        url: img.url,
+        title: img.caption || c.fullName,
+        caption: img.caption,
+        source: img.sourceCredit,
+        category: img.category
+      }))
+  ];
+
+  function openLightboxForUrl(
+    url: string,
+    title?: string,
+    caption?: string,
+    source?: string
+  ) {
+    if (!isMeaningfulValue(url)) return;
+    const idx = allCharacterImages.findIndex((x) => x.url === url);
+    if (idx >= 0) {
+      setLightboxState({ items: allCharacterImages, index: idx });
+    } else {
+      setLightboxState({
+        items: [{ url, title: title || c.fullName, caption, source }, ...allCharacterImages],
+        index: 0
+      });
+    }
+  }
 
   const statRows = [
     { label: "HP (Sinh lực)", val: ab.stats.hp, max: 1000, color: "#ef4444" },
@@ -277,51 +351,76 @@ export function CharacterDetailView({
     { label: "Thích nghi", val: ab.stats.adaptability, max: 100, color: "#fbbf24" }
   ];
 
+  const birthLabel = joinMeaningfulParts([
+    c.birthDay && c.birthMonth ? `${c.birthDay}/${c.birthMonth}` : "",
+    c.birthYear ? `Năm ${c.birthYear}` : ""
+  ]);
+  const deathLabel = joinMeaningfulParts([
+    c.deathDate,
+    c.deathYear ? `Năm ${c.deathYear}` : ""
+  ]);
+
+  const infoboxRows = [
+    ...filterMeaningfulRows([
+      ["Tên khai sinh", c.birthName],
+      ["Chân danh", c.trueName],
+      ["Bí danh", c.aliases],
+      ["Biệt hiệu", c.nicknames],
+      ["Danh hiệu cổ đại", c.ancientTitles],
+      ["Danh hiệu lịch sử", c.historicalTitles],
+      ["Tuổi", c.age],
+      ["Ngày / Năm sinh", birthLabel],
+      ["Ngày / Năm mất", deathLabel],
+      ["Giới tính", c.gender],
+      ["Chủng tộc", c.race],
+      ["Phân loại", c.classification],
+      ["Quốc tịch", c.nationality],
+      ["Quê quán", c.hometown],
+      ["Nơi sinh", c.birthPlace],
+      ["Nơi cư trú", c.residence],
+      ["Nghề nghiệp", c.occupation],
+      ["Chức vụ", c.position],
+      ["Cấp bậc", c.rank],
+      ["Thế giới gốc", c.originWorld],
+      ["Thế giới hiện tại", c.currentWorld]
+    ]),
+    ...getPinnedInfoboxRows(layout, canEdit)
+  ];
+
   const sidebarContent = (
     <div className="space-y-4">
-      {/* Basic Dossier Card */}
-      <div className="codex-card rounded-2xl p-4 space-y-2.5 text-xs">
-        <div className="font-display font-bold text-sm text-[var(--accent)] border-b border-[var(--border-subtle)] pb-2 flex items-center justify-between">
-          <span>✦ Hồ sơ Nhận diện</span>
-          <span className="font-mono text-[11px]">{c.id}</span>
-        </div>
-        {[
-          ["Tên khai sinh", c.birthName],
-          ["Tên thật", c.trueName],
-          ["Tuổi / Năm sinh", [c.age ? `${c.age} tuổi` : "", c.birthYear ? `Năm ${c.birthYear}` : ""].filter(Boolean).join(" · ")],
-          ["Giới tính", c.gender],
-          ["Chủng tộc", c.race],
-          ["Quốc tịch", c.nationality],
-          ["Quê quán", c.hometown],
-          ["Nơi cư trú", c.residence],
-          ["Nghề nghiệp", c.occupation],
-          ["Chức vụ", c.position],
-          ["Cấp bậc", c.rank],
-          ["Thế giới", c.currentWorld]
-        ]
-          .filter(([, v]) => Boolean(v))
-          .map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-2 border-b border-[var(--border-subtle)]/40 pb-1">
+      {/* Basic Dossier Card — Strictly hides empty fields! */}
+      {(infoboxRows.length > 0 || c.linkedNationEntryId) && (
+        <div className="codex-card rounded-2xl p-4 space-y-2.5 text-xs">
+          <div className="font-display font-bold text-sm text-[var(--accent)] border-b border-[var(--border-subtle)] pb-2 flex items-center justify-between">
+            <span>✦ Hồ sơ Nhận diện</span>
+            <span className="font-mono text-[11px]">{c.id}</span>
+          </div>
+          {infoboxRows.map(([k, v], idx) => (
+            <div key={`${k}-${idx}`} className="flex justify-between gap-2 border-b border-[var(--border-subtle)]/40 pb-1">
               <span className="text-[var(--text-muted)] shrink-0">{k}</span>
               <span className="text-right text-[var(--text-primary)] font-medium">{v}</span>
             </div>
           ))}
-        {c.linkedNationEntryId && onOpenNationEntry && (
-          <button
-            type="button"
-            onClick={() => onOpenNationEntry(c.linkedNationEntryId!)}
-            className="w-full mt-2 py-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Globe2 className="w-3.5 h-3.5" /> Mở Hồ sơ Quốc gia Liên kết
-          </button>
-        )}
-      </div>
+          {c.linkedNationEntryId && onOpenNationEntry && (
+            <button
+              type="button"
+              onClick={() => onOpenNationEntry(c.linkedNationEntryId!)}
+              className="w-full mt-2 py-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Globe2 className="w-3.5 h-3.5" /> Mở Hồ sơ Quốc gia Liên kết
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Notable Relationships */}
+      {/* Full Relationships List in Sidebar (All relationships shown!) */}
       {dossier.relationships.length > 0 && (
         <div className="codex-card rounded-2xl p-4 space-y-2 text-xs">
-          <div className="font-display font-bold text-sm text-[var(--accent)]">✦ Quan hệ Nổi bật</div>
-          {dossier.relationships.slice(0, 5).map(({ relation, otherCharacter }) => (
+          <div className="font-display font-bold text-sm text-[var(--accent)]">
+            ✦ Quan hệ Nhân vật ({dossier.relationships.length})
+          </div>
+          {dossier.relationships.map(({ relation, otherCharacter }) => (
             <button
               key={relation.id}
               type="button"
@@ -470,22 +569,44 @@ export function CharacterDetailView({
         </div>
       </div>
 
-      {/* A. Hero Section */}
+      {/* A. Hero Section (With Full-Size Clickable Cover & Portrait) */}
       <div
-        className="relative rounded-2xl border p-5 sm:p-6 overflow-hidden"
+        className="relative rounded-2xl border overflow-hidden"
         style={{
           borderColor: `${c.accentColor}55`,
           background: `radial-gradient(circle at 85% 20%, ${c.accentColor}22, transparent 58%), var(--bg-surface)`
         }}
       >
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          {c.portraitUrl ? (
+        {isMeaningfulValue(c.coverUrl) && (
+          <div
+            onClick={() => openLightboxForUrl(c.coverUrl, `${c.fullName} — Ảnh bìa`)}
+            className="relative h-36 sm:h-48 w-full overflow-hidden border-b border-white/10 cursor-zoom-in group"
+            title="Nhấn để xem ảnh bìa kích thước gốc"
+          >
             <img
-              src={c.portraitUrl}
-              alt={c.fullName}
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 shadow-lg shrink-0"
-              style={{ borderColor: c.accentColor }}
+              src={c.coverUrl}
+              alt={`${c.fullName} Cover`}
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
             />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#101522] via-transparent to-transparent" />
+          </div>
+        )}
+
+        <div className="p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {isMeaningfulValue(c.portraitUrl) ? (
+            <button
+              type="button"
+              onClick={() => openLightboxForUrl(c.portraitUrl, `${c.fullName} — Chân dung`)}
+              className="relative group shrink-0 cursor-zoom-in rounded-2xl overflow-hidden border-2 shadow-lg"
+              style={{ borderColor: c.accentColor }}
+              title="Nhấn để xem ảnh chân dung kích thước lớn"
+            >
+              <img
+                src={c.portraitUrl}
+                alt={c.fullName}
+                className="w-20 h-20 sm:w-24 sm:h-24 object-cover group-hover:scale-105 transition-transform"
+              />
+            </button>
           ) : (
             <div
               className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 flex items-center justify-center text-4xl font-bold shrink-0 bg-black/30"
@@ -502,9 +623,11 @@ export function CharacterDetailView({
               </span>
               <span className={`px-2 py-0.5 rounded-full border font-semibold ${rarity.cls}`}>{rarity.label}</span>
               <span className={`px-2 py-0.5 rounded-full border ${verify.cls}`}>{verify.label}</span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/35 font-mono">
-                Lv.{ab.level} {ab.realm ? `· ${ab.realm}` : ""}
-              </span>
+              {(showRpgStats || isMeaningfulValue(ab.realm)) && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/35 font-mono">
+                  {joinMeaningfulParts([showRpgStats ? `Lv.${ab.level}` : "", ab.realm])}
+                </span>
+              )}
             </div>
 
             <h1 className="font-display text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">
@@ -517,13 +640,15 @@ export function CharacterDetailView({
               </div>
             )}
 
-            <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed max-w-3xl">
-              {c.summary}
-            </p>
+            {isMeaningfulValue(c.summary) && (
+              <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed max-w-3xl">
+                {c.summary}
+              </p>
+            )}
 
             {c.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {c.tags.map((t) => (
+                {c.tags.filter((t) => isMeaningfulValue(t)).map((t) => (
                   <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[var(--text-muted)]">
                     #{t}
                   </span>
@@ -552,49 +677,186 @@ export function CharacterDetailView({
       {/* Main Content + Sticky Sidebar */}
       <div className={`grid grid-cols-1 ${isMobile ? "" : "lg:grid-cols-12"} gap-5 items-start`}>
         <div className={isMobile ? "space-y-4" : "lg:col-span-8 space-y-4"}>
-          {/* C. 14 Navigation Tabs (Drag with Mouse / Swipe / Scrollbar) */}
-          <DraggableScrollArea ariaLabel="Các mục hồ sơ nhân vật" innerClassName="flex gap-1.5 px-1">
-            {DETAIL_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setActiveTab(t.id)}
-                className={`shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                  activeTab === t.id
-                    ? "bg-[var(--accent)] text-[#090e1c] font-bold shadow"
-                    : "codex-card text-[var(--text-secondary)] hover:text-[var(--accent)]"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </DraggableScrollArea>
+          {/* C. Dynamic Non-Empty Navigation Tabs + User Custom Tabs */}
+          {(() => {
+            const hiddenSet = new Set(layout?.hiddenBuiltInTabs || []);
+            const renamedMap = layout?.renamedBuiltInTabs || {};
+            const hasFreeformFor = (tid: string) =>
+              Boolean(
+                layout?.blocks?.some(
+                  (b) =>
+                    b.tabId === tid &&
+                    b.fields.some((f) => isCustomFieldMeaningful(f, canEdit))
+                )
+              );
+
+            const hasTabContent = (tid: BuiltInDetailTab): boolean => {
+              if (hasFreeformFor(tid)) return true;
+              switch (tid) {
+                case "overview":
+                  return (
+                    showRpgStats ||
+                    ab.worldStatOverrides.length > 0 ||
+                    dossier.quotes.length > 0 ||
+                    hasFreeformFor("identity") ||
+                    infoboxRows.length > 0
+                  );
+                case "biography":
+                  return dossier.biographies.length > 0;
+                case "appearance":
+                  return dossier.appearances.some((ap) =>
+                    isMeaningfulValue([
+                      ap.description,
+                      ap.height,
+                      ap.weight,
+                      ap.hairColor,
+                      ap.eyeColor,
+                      ap.casualOutfit,
+                      ap.combatOutfit,
+                      ap.scars,
+                      ap.imageUrl
+                    ])
+                  );
+                case "personality":
+                  return dossier.personalities.some((p) =>
+                    isMeaningfulValue([
+                      p.corePersonality,
+                      p.strengths,
+                      p.weaknesses,
+                      p.motivations,
+                      p.lifePhilosophy,
+                      p.internalConflict,
+                      p.dangerReaction
+                    ])
+                  );
+                case "abilities":
+                  return (
+                    isMeaningfulValue([
+                      ab.energySystem,
+                      ab.realm,
+                      ab.powerTier,
+                      ab.elements,
+                      ab.bloodline,
+                      ab.innateAbilities,
+                      ab.resistances,
+                      ab.weaknesses,
+                      ab.powerLimits
+                    ]) || ab.progressionHistory.length > 0
+                  );
+                case "skills":
+                  return dossier.skills.length > 0;
+                case "equipment":
+                  return dossier.equipment.length > 0;
+                case "relationships":
+                  return dossier.relationships.length > 0;
+                case "affiliations":
+                  return dossier.affiliations.length > 0;
+                case "events":
+                  return dossier.events.length > 0;
+                case "achievements":
+                  return (
+                    dossier.achievements.length > 0 ||
+                    isMeaningfulValue([
+                      c.combat.combatStyle,
+                      c.combat.schoolOrDiscipline,
+                      c.combat.masteredWeapons,
+                      c.combat.militaryAchievements
+                    ]) ||
+                    c.combat.victoriesCount > 0 ||
+                    c.combat.defeatsCount > 0
+                  );
+                case "assets":
+                  return (
+                    dossier.assets.length > 0 ||
+                    c.socialStanding.nationEvaluations.length > 0 ||
+                    isMeaningfulValue(c.socialStanding.reputation)
+                  );
+                case "gallery":
+                  return dossier.images.length > 0;
+                case "lore":
+                  return (
+                    dossier.quotes.length > 0 ||
+                    dossier.sources.length > 0 ||
+                    dossier.customFields.some((cf) => isMeaningfulValue(cf.value)) ||
+                    isMeaningfulValue([
+                      c.trivia.hobbies,
+                      c.trivia.favoriteFood,
+                      c.trivia.favoriteColor,
+                      c.trivia.musicTaste,
+                      c.trivia.habits,
+                      c.trivia.personalSecrets
+                    ])
+                  );
+                default:
+                  return false;
+              }
+            };
+
+            const visibleBuiltIn = DETAIL_TABS.filter(
+              (t) => !hiddenSet.has(t.id) && (t.id === "overview" || hasTabContent(t.id))
+            ).map((t) => ({
+              id: t.id,
+              label: renamedMap[t.id] || t.label
+            }));
+
+            const visibleCustom = (layout?.customTabs || [])
+              .filter((ct) => hasFreeformFor(ct.id) || canEdit)
+              .map((ct) => ({
+                id: ct.id,
+                label: `${ct.sigil || "✦"} ${ct.label}`
+              }));
+
+            const finalTabs = [...visibleBuiltIn, ...visibleCustom];
+
+            if (finalTabs.length <= 1) return null;
+
+            return (
+              <DraggableScrollArea ariaLabel="Các mục hồ sơ nhân vật" innerClassName="flex gap-1.5 px-1">
+                {finalTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTab(t.id)}
+                    className={`shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
+                      activeTab === t.id
+                        ? "bg-[var(--accent)] text-[#090e1c] font-bold shadow"
+                        : "codex-card text-[var(--text-secondary)] hover:text-[var(--accent)]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </DraggableScrollArea>
+            );
+          })()}
 
           {/* Active Tab Body */}
           <div className="codex-card rounded-2xl p-4 sm:p-5 space-y-4">
             {activeTab === "overview" && (
               <div className="space-y-5">
-                <div>
-                  <h3 className="font-display text-base font-bold text-[var(--accent)] mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" /> 13 Chỉ số Cơ bản &amp; Năng lực Cốt lõi
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {statRows.map((st) => {
-                      const pct = Math.min(100, Math.round((st.val / st.max) * 100));
-                      return (
-                        <div key={st.label} className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-[var(--text-secondary)]">{st.label}</span>
-                            <span className="font-mono font-bold text-[var(--text-primary)]">{st.val}</span>
+                {showRpgStats && (
+                  <div>
+                    <h3 className="font-display text-base font-bold text-[var(--accent)] mb-3 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" /> 13 Chỉ số Cơ bản &amp; Năng lực Cốt lõi
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {statRows.map((st) => {
+                        const pct = Math.min(100, Math.round((st.val / st.max) * 100));
+                        return (
+                          <div key={st.label} className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-[var(--text-secondary)]">{st.label}</span>
+                              <span className="font-mono font-bold text-[var(--text-primary)]">{st.val}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full rounded-full economy-bar-fill" style={{ width: `${pct}%`, backgroundColor: st.color }} />
+                            </div>
                           </div>
-                          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                            <div className="h-full rounded-full economy-bar-fill" style={{ width: `${pct}%`, backgroundColor: st.color }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {ab.worldStatOverrides.length > 0 && (
                   <div className="pt-3 border-t border-[var(--border-subtle)]">
@@ -609,14 +871,43 @@ export function CharacterDetailView({
                   </div>
                 )}
 
-                {dossier.quotes[0] && (
+                {dossier.quotes[0] && isMeaningfulValue(dossier.quotes[0].quoteText) && (
                   <blockquote className="rounded-xl border-l-4 border-[var(--accent)] bg-[var(--accent-soft)] p-4 italic text-sm text-[var(--text-primary)]">
                     “{dossier.quotes[0].quoteText}”
                     <footer className="mt-1 not-italic text-[11px] text-[var(--text-muted)]">
-                      — {c.fullName}, {dossier.quotes[0].timeLabel} ({dossier.quotes[0].location})
+                      — {joinMeaningfulParts([c.fullName, dossier.quotes[0].timeLabel, dossier.quotes[0].location])}
                     </footer>
                   </blockquote>
                 )}
+
+                <CustomProfileBlocksRenderer
+                  tabId="identity"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
+                <CustomProfileBlocksRenderer
+                  tabId="overview"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
+
+                {!showRpgStats &&
+                  ab.worldStatOverrides.length === 0 &&
+                  !dossier.quotes[0] &&
+                  infoboxRows.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                      {infoboxRows.map(([k, v], idx) => (
+                        <div key={`${k}-${idx}`} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
+                          <div className="text-[10px] text-[var(--text-muted)]">{k}</div>
+                          <div className="text-sm font-semibold text-[var(--text-primary)] mt-0.5">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
             )}
 
@@ -651,90 +942,132 @@ export function CharacterDetailView({
 
             {activeTab === "appearance" && (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-display text-base font-bold text-[var(--accent)]">
-                    Ngoại hình &amp; Nhận dạng ({dossier.appearances.length} giai đoạn)
-                  </h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {dossier.appearances.map((a, idx) => (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => setSelectedAppearanceIdx(idx)}
-                        className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer ${
-                          selectedAppearanceIdx === idx
-                            ? "bg-[var(--accent)] text-[#090e1c] font-bold"
-                            : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
-                        }`}
-                      >
-                        {a.stageName}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {dossier.appearances[selectedAppearanceIdx] ? (
-                  (() => {
-                    const ap = dossier.appearances[selectedAppearanceIdx];
-                    return (
-                      <SpoilerGateBox accessLevel={ap.accessLevel} label={ap.spoilerLabel}>
-                        <div className="space-y-3 text-xs">
-                          <p className="text-sm text-[var(--text-secondary)]">{ap.description}</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                            {[
-                              ["Tuổi / Thời kỳ", `${ap.ageAtStage} · ${ap.timePeriod}`],
-                              ["Chiều cao / Cân nặng", `${ap.height} · ${ap.weight}`],
-                              ["Tóc", `${ap.hairColor} (${ap.hairStyle})`],
-                              ["Mắt / Da", `${ap.eyeColor} · ${ap.skinTone}`],
-                              ["Khuôn mặt / Thể trạng", `${ap.faceFeatures} · ${ap.physique}`],
-                              ["Giọng nói / Phong thái", `${ap.voice} · ${ap.demeanor}`],
-                              ["Sẹo / Hình xăm", `${ap.scars} · ${ap.tattoos}`],
-                              ["Trang phục thường ngày", ap.casualOutfit],
-                              ["Trang phục chiến đấu", ap.combatOutfit],
-                              ["Trang phục nghi lễ", ap.ceremonialOutfit],
-                              ["Phụ kiện", ap.accessories],
-                              ["Biểu tượng cá nhân", ap.personalEmblem]
-                            ]
-                              .filter(([, v]) => Boolean(v && v.replace(/[·()\s]/g, "")))
-                              .map(([k, v]) => (
-                                <div key={k} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5">
-                                  <div className="text-[10px] text-[var(--text-muted)]">{k}</div>
-                                  <div className="text-[var(--text-primary)] font-medium mt-0.5">{v}</div>
-                                </div>
-                              ))}
-                          </div>
+                <CustomProfileBlocksRenderer
+                  tabId="appearance"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
+                {!layout?.blocks?.some((b) => b.tabId === "appearance") &&
+                  dossier.appearances.length > 0 && (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="font-display text-base font-bold text-[var(--accent)]">
+                          Ngoại hình &amp; Nhận dạng ({dossier.appearances.length} giai đoạn)
+                        </h3>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dossier.appearances.map((a, idx) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => setSelectedAppearanceIdx(idx)}
+                              className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer ${
+                                selectedAppearanceIdx === idx
+                                  ? "bg-[var(--accent)] text-[#090e1c] font-bold"
+                                  : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                              }`}
+                            >
+                              {a.stageName}
+                            </button>
+                          ))}
                         </div>
-                      </SpoilerGateBox>
-                    );
-                  })()
-                ) : (
-                  <p className="text-xs text-[var(--text-muted)]">Chưa có thông tin ngoại hình.</p>
-                )}
+                      </div>
+                      {dossier.appearances[selectedAppearanceIdx] && (() => {
+                        const ap = dossier.appearances[selectedAppearanceIdx];
+                        const apRows = filterMeaningfulRows([
+                          ["Tuổi / Thời kỳ", joinMeaningfulParts([ap.ageAtStage, ap.timePeriod])],
+                          ["Chiều cao / Cân nặng", joinMeaningfulParts([ap.height, ap.weight])],
+                          ["Tóc", joinMeaningfulParts([ap.hairColor, ap.hairStyle])],
+                          ["Mắt / Da", joinMeaningfulParts([ap.eyeColor, ap.skinTone])],
+                          ["Khuôn mặt / Thể trạng", joinMeaningfulParts([ap.faceFeatures, ap.physique])],
+                          ["Giọng nói / Phong thái", joinMeaningfulParts([ap.voice, ap.demeanor])],
+                          ["Sẹo / Hình xăm", joinMeaningfulParts([ap.scars, ap.tattoos])],
+                          ["Trang phục thường ngày", ap.casualOutfit],
+                          ["Trang phục chiến đấu", ap.combatOutfit],
+                          ["Trang phục nghi lễ", ap.ceremonialOutfit],
+                          ["Phụ kiện", ap.accessories],
+                          ["Biểu tượng cá nhân", ap.personalEmblem]
+                        ]);
+                        return (
+                          <SpoilerGateBox accessLevel={ap.accessLevel} label={ap.spoilerLabel}>
+                            <div className="space-y-3 text-xs">
+                              {isMeaningfulValue(ap.imageUrl) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openLightboxForUrl(ap.imageUrl, ap.stageName, ap.description)}
+                                  className="rounded-xl overflow-hidden border border-[#C6A568]/35 cursor-zoom-in block max-w-xs"
+                                >
+                                  <img src={ap.imageUrl} alt={ap.stageName} className="max-h-56 w-auto object-contain" />
+                                </button>
+                              )}
+                              {isMeaningfulValue(ap.description) && (
+                                <p className="text-sm text-[var(--text-secondary)]">{ap.description}</p>
+                              )}
+                              {apRows.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                  {apRows.map(([k, v]) => (
+                                    <div key={k} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5">
+                                      <div className="text-[10px] text-[var(--text-muted)]">{k}</div>
+                                      <div className="text-[var(--text-primary)] font-medium mt-0.5">{v}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </SpoilerGateBox>
+                        );
+                      })()}
+                    </>
+                  )}
               </div>
             )}
 
             {activeTab === "personality" && (
               <div className="space-y-4">
-                <h3 className="font-display text-base font-bold text-[var(--accent)]">
-                  Tính cách &amp; Phát triển Tâm lý ({dossier.personalities.length} giai đoạn)
-                </h3>
-                {dossier.personalities.map((per) => (
-                  <SpoilerGateBox key={per.id} accessLevel={per.accessLevel} label={per.spoilerLabel}>
-                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-4 space-y-3 text-xs">
-                      <div className="font-bold text-sm text-[var(--accent)]">
-                        {per.stageName} <span className="text-[var(--text-muted)] font-normal">({per.periodLabel})</span>
-                      </div>
-                      <p className="text-[var(--text-primary)]">{per.corePersonality}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div><strong className="text-emerald-300">Ưu điểm:</strong> {per.strengths.join(", ") || "—"}</div>
-                        <div><strong className="text-rose-300">Khuyết điểm:</strong> {per.weaknesses.join(", ") || "—"}</div>
-                        <div><strong className="text-sky-300">Động lực:</strong> {per.motivations || "—"}</div>
-                        <div><strong className="text-amber-300">Triết lý sống:</strong> {per.lifePhilosophy || "—"}</div>
-                        <div><strong className="text-purple-300">Mâu thuẫn nội tâm:</strong> {per.internalConflict || "—"}</div>
-                        <div><strong className="text-cyan-300">Phản ứng nguy hiểm:</strong> {per.dangerReaction || "—"}</div>
-                      </div>
-                    </div>
-                  </SpoilerGateBox>
-                ))}
+                <CustomProfileBlocksRenderer
+                  tabId="personality"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
+                {!layout?.blocks?.some((b) => b.tabId === "personality") &&
+                  dossier.personalities.map((per) => {
+                    const perRows = filterMeaningfulRows([
+                      ["Ưu điểm", per.strengths],
+                      ["Khuyết điểm", per.weaknesses],
+                      ["Động lực", per.motivations],
+                      ["Triết lý sống", per.lifePhilosophy],
+                      ["Mâu thuẫn nội tâm", per.internalConflict],
+                      ["Phản ứng nguy hiểm", per.dangerReaction]
+                    ]);
+                    if (!isMeaningfulValue(per.corePersonality) && perRows.length === 0) return null;
+                    return (
+                      <SpoilerGateBox key={per.id} accessLevel={per.accessLevel} label={per.spoilerLabel}>
+                        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-4 space-y-3 text-xs">
+                          <div className="font-bold text-sm text-[var(--accent)]">
+                            {per.stageName}
+                            {isMeaningfulValue(per.periodLabel) && (
+                              <span className="text-[var(--text-muted)] font-normal"> ({per.periodLabel})</span>
+                            )}
+                          </div>
+                          {isMeaningfulValue(per.corePersonality) && (
+                            <p className="text-[var(--text-primary)]">{per.corePersonality}</p>
+                          )}
+                          {perRows.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {perRows.map(([k, v]) => (
+                                <div key={k}>
+                                  <strong className="text-[#C6A568]">{k}:</strong> {v}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </SpoilerGateBox>
+                    );
+                  })}
               </div>
             )}
 
@@ -743,19 +1076,37 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)]">
                   Hệ thống Năng lực, Sức mạnh &amp; Lịch sử Tiến hóa
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
-                    <div className="text-[var(--text-muted)]">Hệ thống năng lượng &amp; Cảnh giới</div>
-                    <div className="font-bold text-sm text-amber-300 mt-0.5">{ab.energySystem || "—"} · {ab.realm || "—"}</div>
-                    <div className="text-[11px] text-[var(--text-secondary)] mt-1">{ab.powerTier}</div>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
-                    <div className="text-[var(--text-muted)]">Nguyên tố, Huyết thống &amp; Điểm yếu</div>
-                    <div className="mt-0.5"><strong>Nguyên tố:</strong> {ab.elements.join(", ") || "—"}</div>
-                    <div><strong>Huyết thống:</strong> {ab.bloodline || "—"}</div>
-                    <div className="text-rose-300"><strong>Điểm yếu:</strong> {ab.weaknesses.join(", ") || "—"}</div>
-                  </div>
-                </div>
+                {(() => {
+                  const abRows = filterMeaningfulRows([
+                    ["Hệ thống năng lượng", ab.energySystem],
+                    ["Cảnh giới", ab.realm],
+                    ["Bậc sức mạnh", ab.powerTier],
+                    ["Nguyên tố", ab.elements],
+                    ["Huyết thống", ab.bloodline],
+                    ["Năng lực bẩm sinh", ab.innateAbilities],
+                    ["Kháng tính & Miễn nhiễm", ab.resistances],
+                    ["Điểm yếu", ab.weaknesses],
+                    ["Giới hạn sức mạnh", ab.powerLimits]
+                  ]);
+                  if (abRows.length === 0) return null;
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {abRows.map(([k, v]) => (
+                        <div key={k} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
+                          <div className="text-[10px] text-[var(--text-muted)]">{k}</div>
+                          <div className="font-semibold text-[var(--text-primary)] mt-0.5">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <CustomProfileBlocksRenderer
+                  tabId="abilities"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
                 {ab.progressionHistory.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)]">
                     <div className="font-semibold text-[var(--accent)]">Lịch sử Phát triển Sức mạnh (Đã biên tập viên xác nhận)</div>
@@ -780,27 +1131,41 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)]">
                   Danh mục Kỹ năng ({dossier.skills.length})
                 </h3>
-                {dossier.skills.length === 0 ? (
-                  <p className="text-xs text-[var(--text-muted)]">Chưa có kỹ năng nào được ghi nhận.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {dossier.skills.map(({ skill, relation }) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {dossier.skills.map(({ skill, relation }) => {
+                    const skMeta = filterMeaningfulRows([
+                      ["Hồi chiêu", skill.cooldown],
+                      ["Chi phí", skill.energyCost],
+                      ["Phạm vi", skill.effectRange],
+                      ["Thành thạo", relation.masteryLevel]
+                    ]);
+                    return (
                       <div key={relation.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 space-y-1.5 text-xs">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-sm text-[var(--accent)]">{skill.name}</span>
                           <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white/10">{skill.id} · Lv.{relation.skillLevel}</span>
                         </div>
-                        <p className="text-[var(--text-secondary)]">{skill.description}</p>
-                        <div className="grid grid-cols-2 gap-1 text-[11px] text-[var(--text-muted)] pt-1 border-t border-[var(--border-subtle)]/50">
-                          <span>Hồi chiêu: <strong className="text-[var(--text-primary)]">{skill.cooldown || "—"}</strong></span>
-                          <span>Chi phí: <strong className="text-[var(--text-primary)]">{skill.energyCost || "—"}</strong></span>
-                          <span>Phạm vi: <strong className="text-[var(--text-primary)]">{skill.effectRange || "—"}</strong></span>
-                          <span>Thành thạo: <strong className="text-amber-300">{relation.masteryLevel || "—"}</strong></span>
-                        </div>
+                        {isMeaningfulValue(skill.description) && (
+                          <p className="text-[var(--text-secondary)]">{skill.description}</p>
+                        )}
+                        {skMeta.length > 0 && (
+                          <div className="grid grid-cols-2 gap-1 text-[11px] text-[var(--text-muted)] pt-1 border-t border-[var(--border-subtle)]/50">
+                            {skMeta.map(([k, v]) => (
+                              <span key={k}>{k}: <strong className="text-[var(--text-primary)]">{v}</strong></span>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
+                <CustomProfileBlocksRenderer
+                  tabId="skills"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
               </div>
             )}
 
@@ -809,21 +1174,33 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)] flex items-center gap-2">
                   <Shield className="w-4 h-4" /> Trang bị, Vũ khí &amp; Cổ vật ({dossier.equipment.length})
                 </h3>
-                {dossier.equipment.map(({ item, relation }) => (
-                  <div key={relation.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-sm text-[var(--text-primary)]">{item.name}</span>
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300">{item.id} · {relation.slotLabel}</span>
-                    </div>
-                    <div className="text-[var(--text-secondary)]">{item.traits}</div>
-                    <div className="text-[11px] text-[var(--text-muted)]">Nguồn gốc: {item.origin || "—"} · Cấp độ: {item.levelOrTier || "—"}</div>
-                    {item.transferHistory.length > 0 && (
-                      <div className="pt-1 text-[11px] text-cyan-300">
-                        Lịch sử chuyển nhượng: {item.transferHistory.map((h) => `${h.dateLabel} (${h.from} → ${h.to})`).join(" | ")}
+                {dossier.equipment.map(({ item, relation }) => {
+                  const eqMeta = joinMeaningfulParts([
+                    isMeaningfulValue(item.origin) ? `Nguồn gốc: ${item.origin}` : "",
+                    isMeaningfulValue(item.levelOrTier) ? `Cấp độ: ${item.levelOrTier}` : ""
+                  ]);
+                  return (
+                    <div key={relation.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sm text-[var(--text-primary)]">{item.name}</span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300">
+                          {joinMeaningfulParts([item.id, relation.slotLabel])}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {isMeaningfulValue(item.traits) && (
+                        <div className="text-[var(--text-secondary)]">{item.traits}</div>
+                      )}
+                      {isMeaningfulValue(eqMeta) && (
+                        <div className="text-[11px] text-[var(--text-muted)]">{eqMeta}</div>
+                      )}
+                      {item.transferHistory.length > 0 && (
+                        <div className="pt-1 text-[11px] text-cyan-300">
+                          Lịch sử chuyển nhượng: {item.transferHistory.map((h) => `${h.dateLabel} (${h.from} → ${h.to})`).join(" | ")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -885,20 +1262,31 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)] flex items-center gap-2">
                   <Users className="w-4 h-4" /> Gia tộc, Vương tộc &amp; Tổ chức ({dossier.affiliations.length})
                 </h3>
-                {dossier.affiliations.map(({ affiliation, organization }) => (
-                  <div key={affiliation.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm" style={{ color: organization.color }}>
-                        {organization.sigil} {organization.name} ({organization.id})
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-white/10 text-[10px]">{affiliation.position}</span>
+                {dossier.affiliations.map(({ affiliation, organization }) => {
+                  const afMeta = joinMeaningfulParts([
+                    isMeaningfulValue(affiliation.joinDate) ? `Gia nhập: ${affiliation.joinDate}` : "",
+                    isMeaningfulValue(affiliation.leaveDate) ? `Rời đi: ${affiliation.leaveDate}` : "",
+                    isMeaningfulValue(affiliation.authorityScope) ? `Quyền hạn: ${affiliation.authorityScope}` : ""
+                  ]);
+                  return (
+                    <div key={affiliation.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm" style={{ color: organization.color }}>
+                          {organization.sigil} {organization.name} ({organization.id})
+                        </span>
+                        {isMeaningfulValue(affiliation.position) && (
+                          <span className="px-2 py-0.5 rounded bg-white/10 text-[10px]">{affiliation.position}</span>
+                        )}
+                      </div>
+                      {isMeaningfulValue(affiliation.roleDescription) && (
+                        <div className="text-[var(--text-secondary)]">{affiliation.roleDescription}</div>
+                      )}
+                      {isMeaningfulValue(afMeta) && (
+                        <div className="text-[11px] text-[var(--text-muted)]">{afMeta}</div>
+                      )}
                     </div>
-                    <div className="text-[var(--text-secondary)]">{affiliation.roleDescription}</div>
-                    <div className="text-[11px] text-[var(--text-muted)]">
-                      Gia nhập: {affiliation.joinDate || "—"} {affiliation.leaveDate ? `· Rời đi: ${affiliation.leaveDate}` : "· Đang hoạt động"} · Quyền hạn: {affiliation.authorityScope || "—"}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -976,20 +1364,40 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)] flex items-center gap-2">
                   <Award className="w-4 h-4" /> Thành tựu, Chiến tích &amp; Kinh nghiệm Chiến đấu
                 </h3>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 space-y-1.5">
-                  <div className="font-semibold text-[var(--accent)] flex items-center gap-1.5">
-                    <Swords className="w-3.5 h-3.5" /> Hồ sơ Chiến đấu ({c.combat.victoriesCount} thắng / {c.combat.defeatsCount} bại)
-                  </div>
-                  <div><strong>Phong cách:</strong> {c.combat.combatStyle || "—"} · <strong>Trường phái:</strong> {c.combat.schoolOrDiscipline || "—"}</div>
-                  <div><strong>Chỉ huy:</strong> {c.combat.commandRating}% · <strong>Chiến thuật:</strong> {c.combat.tacticsRating}% · <strong>Công/Thủ:</strong> {c.combat.offenseRating}% / {c.combat.defenseRating}%</div>
-                </div>
+                {(() => {
+                  const combatRows = filterMeaningfulRows([
+                    ["Phong cách chiến đấu", c.combat.combatStyle],
+                    ["Trường phái / Học phái", c.combat.schoolOrDiscipline],
+                    ["Vũ khí thành thạo", c.combat.masteredWeapons],
+                    ["Chiến công quân sự", c.combat.militaryAchievements]
+                  ]);
+                  const hasBattleRecord = c.combat.victoriesCount > 0 || c.combat.defeatsCount > 0;
+                  if (combatRows.length === 0 && !hasBattleRecord) return null;
+                  return (
+                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3.5 space-y-1.5">
+                      <div className="font-semibold text-[var(--accent)] flex items-center gap-1.5">
+                        <Swords className="w-3.5 h-3.5" /> Hồ sơ Chiến đấu
+                        {hasBattleRecord && ` (${c.combat.victoriesCount} thắng / ${c.combat.defeatsCount} bại)`}
+                      </div>
+                      {combatRows.map(([k, v]) => (
+                        <div key={k}>
+                          <strong>{k}:</strong> {v}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {dossier.achievements.map((ach) => (
                   <div key={ach.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
                     <div className="flex justify-between font-bold text-sm text-amber-200">
                       <span>{ach.title}</span>
-                      <span className="font-mono text-[10px]">{ach.dateAchieved}</span>
+                      {isMeaningfulValue(ach.dateAchieved) && (
+                        <span className="font-mono text-[10px]">{ach.dateAchieved}</span>
+                      )}
                     </div>
-                    <p className="text-[var(--text-secondary)]">{ach.description}</p>
+                    {isMeaningfulValue(ach.description) && (
+                      <p className="text-[var(--text-secondary)]">{ach.description}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1000,14 +1408,34 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)] flex items-center gap-2">
                   <Coins className="w-4 h-4" /> Tài chính Đa tiền tệ &amp; Đánh giá Xã hội
                 </h3>
-                {dossier.assets.map((as) => (
-                  <div key={as.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-1.5">
-                    <div className="font-bold text-sm text-amber-300">{as.personalWealth} ({as.currencyCode})</div>
-                    <div><strong>Thu nhập:</strong> {as.income || "—"}</div>
-                    <div><strong>Bất động sản &amp; Đất đai:</strong> {[...as.properties, ...as.landHoldings].join(", ") || "—"}</div>
-                    <div><strong>Thừa kế / Nợ:</strong> {as.inheritance || "—"} · Nợ: {as.debts || "Không"}</div>
+                {isMeaningfulValue(c.socialStanding.reputation) && (
+                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3">
+                    <span className="text-[var(--text-muted)]">Danh tiếng xã hội: </span>
+                    <strong className="text-[var(--text-primary)]">{c.socialStanding.reputation}</strong>
                   </div>
-                ))}
+                )}
+                {dossier.assets.map((as) => {
+                  const assetRows = filterMeaningfulRows([
+                    ["Thu nhập", as.income],
+                    ["Bất động sản & Đất đai", [...(as.properties || []), ...(as.landHoldings || [])]],
+                    ["Thừa kế", as.inheritance],
+                    ["Khoản nợ", as.debts]
+                  ]);
+                  return (
+                    <div key={as.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-1.5">
+                      {isMeaningfulValue(as.personalWealth) && (
+                        <div className="font-bold text-sm text-amber-300">
+                          {as.personalWealth} {as.currencyCode ? `(${as.currencyCode})` : ""}
+                        </div>
+                      )}
+                      {assetRows.map(([k, v]) => (
+                        <div key={k}>
+                          <strong>{k}:</strong> {v}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
                 {c.socialStanding.nationEvaluations.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)]">
                     <div className="font-semibold text-[var(--accent)]">Đánh giá Riêng của từng Quốc gia</div>
@@ -1018,8 +1446,12 @@ export function CharacterDetailView({
                             <span>{ev.nationName}</span>
                             <span className="text-emerald-300 font-mono">{ev.reputationScore > 0 ? `+${ev.reputationScore}` : ev.reputationScore}</span>
                           </div>
-                          <div className="text-[11px] text-[var(--accent)]">{ev.standingLabel}</div>
-                          <div className="text-[11px] text-[var(--text-muted)]">{ev.note}</div>
+                          {isMeaningfulValue(ev.standingLabel) && (
+                            <div className="text-[11px] text-[var(--accent)]">{ev.standingLabel}</div>
+                          )}
+                          {isMeaningfulValue(ev.note) && (
+                            <div className="text-[11px] text-[var(--text-muted)]">{ev.note}</div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1033,23 +1465,23 @@ export function CharacterDetailView({
                 <h3 className="font-display text-base font-bold text-[var(--accent)] flex items-center gap-2">
                   <ImageIcon className="w-4 h-4" /> Thư viện Hình ảnh ({dossier.images.length})
                 </h3>
-                {dossier.images.length === 0 ? (
-                  <p className="text-xs text-[var(--text-muted)]">Chưa có hình ảnh trong thư viện. Bạn có thể thêm URL ảnh trong trình Chỉnh sửa.</p>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {dossier.images.map((img) => (
-                      <button
-                        key={img.id}
-                        type="button"
-                        onClick={() => setLightboxUrl(img.url)}
-                        className="rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-base)] text-left hover:border-[var(--accent)] cursor-pointer"
-                      >
-                        <img src={img.thumbUrl || img.url} alt={img.caption} className="w-full h-36 object-cover" loading="lazy" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {dossier.images.map((img) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() =>
+                        openLightboxForUrl(img.url, img.caption || c.fullName, img.caption, img.sourceCredit)
+                      }
+                      className="group rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-base)] text-left hover:border-[var(--accent)] cursor-zoom-in"
+                    >
+                      <img src={img.thumbUrl || img.url} alt={img.caption} className="w-full h-36 object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                      {isMeaningfulValue(img.caption || img.category) && (
                         <div className="p-2 text-[11px] truncate text-[var(--text-secondary)]">{img.caption || img.category}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1060,58 +1492,107 @@ export function CharacterDetailView({
                     <h3 className="font-display text-sm font-bold text-[var(--accent)] flex items-center gap-1.5">
                       <Quote className="w-4 h-4" /> Lời thoại &amp; Trích dẫn ({dossier.quotes.length})
                     </h3>
-                    {dossier.quotes.map((q) => (
-                      <div key={q.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3 italic">
-                        “{q.quoteText}”
-                        <div className="not-italic text-[10px] text-[var(--text-muted)] mt-1">
-                          Người nghe: {q.listener || "—"} · {q.timeLabel} · {q.location}
+                    {dossier.quotes.map((q) => {
+                      const qMeta = joinMeaningfulParts([
+                        isMeaningfulValue(q.listener) ? `Người nghe: ${q.listener}` : "",
+                        q.timeLabel,
+                        q.location
+                      ]);
+                      return (
+                        <div key={q.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3 italic">
+                          “{q.quoteText}”
+                          {isMeaningfulValue(qMeta) && (
+                            <div className="not-italic text-[10px] text-[var(--text-muted)] mt-1">
+                              {qMeta}
+                            </div>
+                          )}
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(() => {
+                  const triviaRows = filterMeaningfulRows([
+                    ["Sở thích", c.trivia.hobbies],
+                    ["Món ăn yêu thích", c.trivia.favoriteFood],
+                    ["Màu sắc yêu thích", c.trivia.favoriteColor],
+                    ["Gu âm nhạc", c.trivia.musicTaste],
+                    ["Thói quen", c.trivia.habits]
+                  ]);
+                  if (triviaRows.length === 0 && c.trivia.personalSecrets.length === 0) return null;
+                  return (
+                    <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+                      <h3 className="font-display text-sm font-bold text-[var(--accent)]">Thông tin Bên lề &amp; Bí mật</h3>
+                      {triviaRows.map(([k, v]) => (
+                        <div key={k}>
+                          <strong>{k}:</strong> {v}
+                        </div>
+                      ))}
+                      {c.trivia.personalSecrets.map((sec) => (
+                        <SpoilerGateBox key={sec.id} accessLevel={sec.accessLevel} label={sec.spoilerLabel || sec.title}>
+                          <div className="rounded-lg border border-purple-500/35 bg-purple-500/10 p-3 mt-2">
+                            <div className="font-bold text-purple-200">{sec.title}</div>
+                            <p className="text-[var(--text-secondary)] mt-0.5">{sec.content}</p>
+                          </div>
+                        </SpoilerGateBox>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {dossier.customFields.some((cf) => isMeaningfulValue(cf.value)) && (
+                  <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+                    <h3 className="font-display text-sm font-bold text-[var(--accent)]">Trường Dữ liệu Tùy biến</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {dossier.customFields
+                        .filter((cf) => isMeaningfulValue(cf.value))
+                        .map(({ definition, value }) => (
+                          <div key={definition.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5">
+                            <div className="text-[10px] text-[var(--text-muted)]">[{definition.groupName}] {definition.label}</div>
+                            <div className="font-semibold text-[var(--text-primary)] mt-0.5">{String(value)}</div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {dossier.sources.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+                    <h3 className="font-display text-sm font-bold text-[var(--accent)]">Nguồn &amp; Tài liệu Tham khảo ({dossier.sources.length})</h3>
+                    {dossier.sources.map((src) => (
+                      <div key={src.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-semibold">{src.title}</div>
+                          {isMeaningfulValue(src.providerOrAuthor) && (
+                            <div className="text-[10px] text-[var(--text-muted)]">{src.providerOrAuthor} · Độ tin cậy {src.reliability}%</div>
+                          )}
+                        </div>
+                        <span className="font-mono text-[10px] text-emerald-300">{src.id}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
-                  <h3 className="font-display text-sm font-bold text-[var(--accent)]">Thông tin Bên lề &amp; Bí mật</h3>
-                  <div><strong>Sở thích:</strong> {c.trivia.hobbies.join(", ") || "—"}</div>
-                  <div><strong>Món ăn / Màu yêu thích:</strong> {c.trivia.favoriteFood || "—"} · {c.trivia.favoriteColor || "—"}</div>
-                  {c.trivia.personalSecrets.map((sec) => (
-                    <SpoilerGateBox key={sec.id} accessLevel={sec.accessLevel} label={sec.spoilerLabel || sec.title}>
-                      <div className="rounded-lg border border-purple-500/35 bg-purple-500/10 p-3 mt-2">
-                        <div className="font-bold text-purple-200">{sec.title}</div>
-                        <p className="text-[var(--text-secondary)] mt-0.5">{sec.content}</p>
-                      </div>
-                    </SpoilerGateBox>
-                  ))}
-                </div>
-
-                {dossier.customFields.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
-                    <h3 className="font-display text-sm font-bold text-[var(--accent)]">Trường Dữ liệu Tùy biến</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {dossier.customFields.map(({ definition, value }) => (
-                        <div key={definition.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5">
-                          <div className="text-[10px] text-[var(--text-muted)]">[{definition.groupName}] {definition.label}</div>
-                          <div className="font-semibold text-[var(--text-primary)] mt-0.5">{String(value ?? "—")}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
-                  <h3 className="font-display text-sm font-bold text-[var(--accent)]">Nguồn &amp; Tài liệu Tham khảo ({dossier.sources.length})</h3>
-                  {dossier.sources.map((src) => (
-                    <div key={src.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-2.5 flex items-center justify-between gap-2">
-                      <div>
-                        <div className="font-semibold">{src.title}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">{src.providerOrAuthor} · Độ tin cậy {src.reliability}%</div>
-                      </div>
-                      <span className="font-mono text-[10px] text-emerald-300">{src.id}</span>
-                    </div>
-                  ))}
-                </div>
+                <CustomProfileBlocksRenderer
+                  tabId="custom"
+                  layout={layout}
+                  canEdit={canEdit}
+                  onOpenImage={openLightboxForUrl}
+                  onOpenEntity={onOpenCharacter}
+                />
               </div>
+            )}
+
+            {/* Render User-Created Custom Tabs */}
+            {!DETAIL_TABS.some((t) => t.id === activeTab) && (
+              <CustomProfileBlocksRenderer
+                tabId={activeTab}
+                layout={layout}
+                canEdit={canEdit}
+                onOpenImage={openLightboxForUrl}
+                onOpenEntity={onOpenCharacter}
+              />
             )}
           </div>
         </div>
@@ -1156,11 +1637,13 @@ export function CharacterDetailView({
         </div>
       )}
 
-      {/* Fullscreen Lightbox */}
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
-          <img src={lightboxUrl} alt="Xem ảnh toàn màn hình" className="max-w-full max-h-[90vh] rounded-xl shadow-2xl" />
-        </div>
+      {/* Universal Full-Resolution Image Lightbox V2 */}
+      {lightboxState && (
+        <ImageLightboxModal
+          images={lightboxState.items}
+          initialIndex={lightboxState.index}
+          onClose={() => setLightboxState(null)}
+        />
       )}
     </div>
   );

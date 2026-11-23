@@ -29,6 +29,22 @@ import { WORLD_CURRENCIES, createDefaultEconomyProfile } from "@/lib/economy-eng
 import type { EntityEmblemConfig, EntryEconomyProfile } from "@/types/codex";
 import { DirectImageUploadField } from "./DirectImageUploadField";
 import { uploadImageToVault } from "@/lib/client-image-optimizer";
+import type { EntityProfileLayoutConfig } from "@/lib/empty-field-engine";
+import {
+  FreeformTabBlocksEditor,
+  ProfileTabCrudBar
+} from "./CustomProfileLayoutBuilder";
+
+const ENTRY_EDITOR_TABS = [
+  { id: "overview", label: "Tổng quan" },
+  { id: "details", label: "Thông số & Tỷ lệ" },
+  { id: "sections", label: "Chương bổ sung" },
+  { id: "eras", label: "Thời kỳ" },
+  { id: "relations", label: "Quan hệ & Liên kết" },
+  { id: "timeline", label: "Dòng thời gian" },
+  { id: "sources", label: "Nguồn & Ghi chú" },
+  { id: "gallery", label: "Thư viện ảnh" }
+];
 
 interface EntryEditorModalProps {
   workspaceId: string;
@@ -114,6 +130,15 @@ export function EntryEditorModal({
   const [emblemConfig, setEmblemConfig] = useState<EntityEmblemConfig | undefined>(
     entry?.emblemConfig
   );
+  const [profileLayout, setProfileLayout] = useState<EntityProfileLayoutConfig>(
+    entry?.profileLayout || {
+      hiddenBuiltInTabs: [],
+      renamedBuiltInTabs: {},
+      customTabs: [],
+      blocks: []
+    }
+  );
+  const [activeLayoutTab, setActiveLayoutTab] = useState<string>("overview");
   const [changeSummary, setChangeSummary] = useState("");
   const [splitPreview, setSplitPreview] = useState(true);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -364,6 +389,7 @@ export function EntryEditorModal({
         gallery: gallery.filter((g) => g.fullUrl || g.thumbUrl),
         economyProfile,
         emblemConfig,
+        profileLayout,
         changeSummary: changeSummary.trim() || undefined
       };
 
@@ -1209,6 +1235,75 @@ export function EntryEditorModal({
           entryType={activeType}
           onChange={setExtraFields}
         />
+
+        {/* V8.0 3-Level Freeform Tab, Block & Field CRUD Builder for All Wiki Entities */}
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 p-3.5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-semibold text-amber-200">
+                ✦ Trình Tùy biến Thanh Tab, Nhóm Thông tin &amp; Trường Dữ liệu Tự do (3-Level CRUD)
+              </div>
+              <div className="text-[11px] text-[var(--text-muted)]">
+                Thêm tab riêng, đổi tên/ẩn tab mặc định, hoặc thêm các khối thông tin tùy ý cho thực thể này. Mục nào để trống sẽ tự ẩn trên thẻ chi tiết.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 pb-1">
+            {[
+              ...ENTRY_EDITOR_TABS.filter(
+                (t) => !(profileLayout.hiddenBuiltInTabs || []).includes(t.id)
+              ).map((t) => ({
+                id: t.id,
+                label: profileLayout.renamedBuiltInTabs?.[t.id] || t.label
+              })),
+              ...(profileLayout.customTabs || []).map((ct) => ({
+                id: ct.id,
+                label: `${ct.sigil || "✦"} ${ct.label}`
+              }))
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveLayoutTab(t.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer ${
+                  activeLayoutTab === t.id
+                    ? "bg-amber-500 text-[#101522] font-bold"
+                    : "border border-[var(--border-subtle)] bg-[var(--bg-base)] text-[var(--text-secondary)]"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <ProfileTabCrudBar
+            activeTabId={activeLayoutTab}
+            activeTabLabel={
+              (profileLayout.customTabs || []).find((t) => t.id === activeLayoutTab)?.label ||
+              profileLayout.renamedBuiltInTabs?.[activeLayoutTab] ||
+              ENTRY_EDITOR_TABS.find((t) => t.id === activeLayoutTab)?.label ||
+              activeLayoutTab
+            }
+            isBuiltIn={ENTRY_EDITOR_TABS.some((t) => t.id === activeLayoutTab)}
+            layout={profileLayout}
+            onChangeLayout={setProfileLayout}
+            onSelectTab={setActiveLayoutTab}
+          />
+
+          <FreeformTabBlocksEditor
+            workspaceId={workspaceId}
+            tabId={activeLayoutTab}
+            tabTitle={
+              (profileLayout.customTabs || []).find((t) => t.id === activeLayoutTab)?.label ||
+              profileLayout.renamedBuiltInTabs?.[activeLayoutTab] ||
+              ENTRY_EDITOR_TABS.find((t) => t.id === activeLayoutTab)?.label ||
+              activeLayoutTab
+            }
+            layout={profileLayout}
+            onChangeLayout={setProfileLayout}
+          />
+        </div>
 
         {/* Sources & Private Notes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

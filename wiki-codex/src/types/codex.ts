@@ -405,6 +405,8 @@ export interface Entry {
   // V7.0 Pure-Wiki Economy Profile & Heraldry Emblem
   economyProfile?: EntryEconomyProfile;
   emblemConfig?: EntityEmblemConfig;
+  /** V8.0 3-Level Freeform Tab, Block & Field CRUD Layout */
+  profileLayout?: import("@/lib/empty-field-engine").EntityProfileLayoutConfig;
   featured?: boolean;
   locked?: boolean;
   spoilerGate: boolean;
@@ -510,6 +512,7 @@ export interface EntryRevision {
     rumorsAndSecrets?: EntryRumorSecret[];
     economyProfile?: EntryEconomyProfile;
     emblemConfig?: EntityEmblemConfig;
+    profileLayout?: import("@/lib/empty-field-engine").EntityProfileLayoutConfig;
     tags: string[];
     contentMarkdown: string;
     customFields: Record<string, CustomFieldValue>;

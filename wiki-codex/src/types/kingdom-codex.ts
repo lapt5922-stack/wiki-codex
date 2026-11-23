@@ -1,5 +1,6 @@
 import type { EntityEmblemConfig, UserRole } from "./codex";
 import type { ContentAccessLevel, VerificationStatus } from "./character-codex";
+import type { EntityProfileLayoutConfig } from "@/lib/empty-field-engine";
 
 export type KingdomWorkflowStatus = "draft" | "published" | "under_review" | "archived";
 
@@ -48,6 +49,7 @@ export interface KingdomRecord {
   linkedWikiEntryId?: string | null;
   linkedAtlasNationId?: string | null;
   nationNum?: number | null;
+  profileLayout?: EntityProfileLayoutConfig;
   createdBy: string;
   updatedBy: string;
   createdAt: string;

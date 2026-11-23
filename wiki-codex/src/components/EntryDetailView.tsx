@@ -95,6 +95,12 @@ import {
 } from "./EntityVisualWidgets";
 import { useDeviceUI } from "@/lib/device-ui";
 import type { EntryCardProjection } from "@/types/codex";
+import { ImageLightboxModal, type LightboxImageItem } from "./ImageLightboxModal";
+import { isMeaningfulValue } from "@/lib/empty-field-engine";
+import {
+  CustomProfileBlocksRenderer,
+  getPinnedInfoboxRows
+} from "./CustomProfileLayoutBuilder";
 
 interface RelationViewItem {
   id: string;
@@ -194,7 +200,7 @@ export function EntryDetailView({
     Array<{ id: string; title: string; sigil: string; roleLabel: string }>
   >([]);
 
-  const [activeTab, setActiveTab] = useState<EntryTabKey>("overview");
+  const [activeTab, setActiveTab] = useState<string>("overview");
   const [conlangMode, setConlangMode] = useState<"vi" | "romanized" | "runic" | "bilingual">("vi");
   const [zenMode, setZenMode] = useState(false);
   const [zenFontSize, setZenFontSize] = useState(17);
@@ -262,7 +268,43 @@ export function EntryDetailView({
   const [varSummary, setVarSummary] = useState("");
   const [editingExtraFields, setEditingExtraFields] = useState(false);
 
-  const [lightboxImg, setLightboxImg] = useState<{ url: string; caption: string } | null>(null);
+  const [lightboxState, setLightboxState] = useState<{
+    items: LightboxImageItem[];
+    index: number;
+  } | null>(null);
+
+  const allEntryImages = useMemo<LightboxImageItem[]>(() => {
+    if (!entry) return [];
+    const list: LightboxImageItem[] = [];
+    const seen = new Set<string>();
+    const pushImg = (url?: string, title?: string, caption?: string) => {
+      if (!isMeaningfulValue(url) || seen.has(url!)) return;
+      seen.add(url!);
+      list.push({ url: url!, title: title || entry.title, caption });
+    };
+    pushImg(entry.coverImage, `${entry.title} — Ảnh bìa`, entry.summary);
+    pushImg(entry.thumbImage, `${entry.title} — Ảnh đại diện`, entry.subtitle);
+    for (const v of entry.variants || []) {
+      pushImg(v.avatarUrl, `${entry.title} (${v.name})`, v.summary);
+    }
+    for (const g of entry.gallery || []) {
+      pushImg(g.fullUrl || g.thumbUrl, g.caption || entry.title, g.caption);
+    }
+    return list;
+  }, [entry]);
+
+  function openEntryLightbox(url: string, title?: string, caption?: string) {
+    if (!isMeaningfulValue(url)) return;
+    const idx = allEntryImages.findIndex((x) => x.url === url);
+    if (idx >= 0) {
+      setLightboxState({ items: allEntryImages, index: idx });
+    } else {
+      setLightboxState({
+        items: [{ url, title: title || entry?.title, caption }, ...allEntryImages],
+        index: 0
+      });
+    }
+  }
 
   // Inline CRUD forms: Relations, Editorial Notes, Custom Sections, Era Snapshots, Breakdown Bars
   const [relTargetId, setRelTargetId] = useState("");
@@ -365,7 +407,12 @@ export function EntryDetailView({
     : ["overview", "details", "sections", "eras", "relations", "timeline", "sources", "gallery"];
 
   useEffect(() => {
-    if (entry && !enabledTabs.includes(activeTab)) {
+    const customTabIds = (entry?.profileLayout?.customTabs || []).map((t) => t.id);
+    if (
+      entry &&
+      !enabledTabs.includes(activeTab as EntryTabKey) &&
+      !customTabIds.includes(activeTab)
+    ) {
       setActiveTab("overview");
     }
   }, [entry, enabledTabs, activeTab]);
@@ -886,12 +933,36 @@ export function EntryDetailView({
           );
         })()}
 
+        {isMeaningfulValue(entry.thumbImage || entry.coverImage) && (
+          <button
+            type="button"
+            onClick={() =>
+              openEntryLightbox(
+                (entry.thumbImage || entry.coverImage)!,
+                `${entry.title} — Ảnh hồ sơ`,
+                entry.summary
+              )
+            }
+            className="group relative w-full rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-black/30 cursor-zoom-in"
+            title="Nhấn để phóng to ảnh hồ sơ"
+          >
+            <img
+              src={entry.thumbImage || entry.coverImage}
+              alt={entry.title}
+              className="w-full h-44 object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-amber-200 opacity-0 group-hover:opacity-100 transition">
+              Xem ảnh lớn
+            </span>
+          </button>
+        )}
+
         <dl className="space-y-2 text-xs">
           {(entryType?.fieldSchema ?? [])
             .filter((f) => f.showInInfobox && f.type !== "private_note")
             .map((field) => {
               const val = entry.customFields?.[field.key];
-              if (val === undefined || val === null || val === "") return null;
+              if (!isMeaningfulValue(val)) return null;
               return (
                 <div
                   key={field.key}
@@ -909,7 +980,12 @@ export function EntryDetailView({
               );
             })}
           {(entry.extraFields ?? [])
-            .filter((f) => f.showInInfobox && (canEdit || f.kind !== "private_note"))
+            .filter(
+              (f) =>
+                f.showInInfobox &&
+                (canEdit || f.kind !== "private_note") &&
+                isMeaningfulValue(f.value)
+            )
             .sort((a, b) => a.order - b.order)
             .map((prop) => (
               <div
@@ -939,6 +1015,15 @@ export function EntryDetailView({
                 )}
               </div>
             ))}
+          {getPinnedInfoboxRows(entry.profileLayout, canEdit).map(([label, value]) => (
+            <div
+              key={label}
+              className="flex justify-between gap-3 border-b border-[var(--border-subtle)]/50 pb-1.5"
+            >
+              <dt className="text-[var(--text-muted)] shrink-0">{label}</dt>
+              <dd className="text-right text-[var(--text-primary)] font-medium">{value}</dd>
+            </div>
+          ))}
         </dl>
 
         {/* Mini Proportional Breakdown preview in Infobox */}
@@ -1263,9 +1348,17 @@ export function EntryDetailView({
               <img
                 src={entry.coverImage}
                 alt={entry.title}
-                className="absolute inset-0 w-full h-full object-cover opacity-45"
+                onClick={() => openEntryLightbox(entry.coverImage, `${entry.title} — Ảnh bìa`, entry.summary)}
+                className="absolute inset-0 w-full h-full object-cover opacity-45 cursor-zoom-in"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-base)] via-[var(--bg-base)]/75 to-transparent" />
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[var(--bg-base)] via-[var(--bg-base)]/75 to-transparent" />
+              <button
+                type="button"
+                onClick={() => openEntryLightbox(entry.coverImage, `${entry.title} — Ảnh bìa`, entry.summary)}
+                className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-lg bg-black/65 border border-white/15 text-[10px] text-amber-200 hover:border-amber-400/50 cursor-pointer"
+              >
+                Xem ảnh bìa lớn
+              </button>
             </>
           )}
 
@@ -1412,11 +1505,17 @@ export function EntryDetailView({
             {activeVariant && (
               <div className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)]/60 p-3.5 flex flex-col sm:flex-row items-start gap-3.5">
                 {activeVariant.avatarUrl && (
-                  <img
-                    src={activeVariant.avatarUrl}
-                    alt={activeVariant.name}
-                    className="w-16 h-16 rounded-xl object-cover border border-[var(--border-strong)] shrink-0"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openEntryLightbox(activeVariant.avatarUrl!, `${entry.title} (${activeVariant.name})`, activeVariant.summary)}
+                    className="shrink-0 cursor-zoom-in"
+                  >
+                    <img
+                      src={activeVariant.avatarUrl}
+                      alt={activeVariant.name}
+                      className="w-16 h-16 rounded-xl object-cover border border-[var(--border-strong)]"
+                    />
+                  </button>
                 )}
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1544,37 +1643,51 @@ export function EntryDetailView({
               </p>
             )}
 
-            {/* 8 Flexible Tabs (Horizontally scrollable on mobile, zero overflow) */}
+            {/* Flexible Tabs (Supports Renamed/Hidden Built-in Tabs + Custom Freeform Tabs) */}
             <div className="flex gap-1.5 overflow-x-auto pb-2 border-b border-[var(--border-subtle)] no-print">
-              {enabledTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                    activeTab === tab
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-strong)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  {TAB_LABELS[tab]}
-                  {tab === "holdings" && ownedHoldings.length > 0 && (
-                    <span className="ml-1 font-mono opacity-75">({ownedHoldings.length})</span>
-                  )}
-                  {tab === "roster" && (entry.roster?.length || 0) > 0 && (
-                    <span className="ml-1 font-mono opacity-75">({entry.roster?.length})</span>
-                  )}
-                  {tab === "sections" && (entry.customSections?.length || 0) > 0 && (
-                    <span className="ml-1 font-mono opacity-75">({entry.customSections?.length})</span>
-                  )}
-                  {tab === "eras" && (entry.eraSnapshots?.length || 0) > 0 && (
-                    <span className="ml-1 font-mono opacity-75">({entry.eraSnapshots?.length})</span>
-                  )}
-                  {tab === "relations" && (
-                    <span className="ml-1 font-mono opacity-75">({relations.length + backlinks.length})</span>
-                  )}
-                </button>
-              ))}
+              {[
+                ...enabledTabs
+                  .filter((tab) => !(entry.profileLayout?.hiddenBuiltInTabs || []).includes(tab))
+                  .map((tab) => ({
+                    id: tab,
+                    label: entry.profileLayout?.renamedBuiltInTabs?.[tab] || TAB_LABELS[tab]
+                  })),
+                ...(entry.profileLayout?.customTabs || []).map((ct) => ({
+                  id: ct.id,
+                  label: ct.sigil ? `${ct.sigil} ${ct.label}` : ct.label
+                }))
+              ].map((tabItem) => {
+                const tab = tabItem.id;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition cursor-pointer ${
+                      activeTab === tab
+                        ? "bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-strong)]"
+                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 border border-transparent"
+                    }`}
+                  >
+                    {tabItem.label}
+                    {tab === "holdings" && ownedHoldings.length > 0 && (
+                      <span className="ml-1 font-mono opacity-75">({ownedHoldings.length})</span>
+                    )}
+                    {tab === "roster" && (entry.roster?.length || 0) > 0 && (
+                      <span className="ml-1 font-mono opacity-75">({entry.roster?.length})</span>
+                    )}
+                    {tab === "sections" && (entry.customSections?.length || 0) > 0 && (
+                      <span className="ml-1 font-mono opacity-75">({entry.customSections?.length})</span>
+                    )}
+                    {tab === "eras" && (entry.eraSnapshots?.length || 0) > 0 && (
+                      <span className="ml-1 font-mono opacity-75">({entry.eraSnapshots?.length})</span>
+                    )}
+                    {tab === "relations" && (
+                      <span className="ml-1 font-mono opacity-75">({relations.length + backlinks.length})</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Tab 1: Overview */}
@@ -1612,6 +1725,11 @@ export function EntryDetailView({
                   entry={entry}
                   canEdit={canEdit}
                   onPatch={patchEntryInline}
+                />
+                <CustomProfileBlocksRenderer
+                  layout={entry.profileLayout}
+                  tabId="overview"
+                  onOpenImage={(url, title, cap) => openEntryLightbox(url, title, cap)}
                 />
               </div>
             )}
@@ -1802,11 +1920,12 @@ export function EntryDetailView({
                   )}
                 </div>
 
-                {/* Dynamic Custom Fields */}
+                {/* Dynamic Custom Fields (Only renders non-empty fields — zero "—" placeholders) */}
                 <div className="space-y-3">
                   {(entryType?.fieldSchema ?? []).map((field) => {
                     if (field.type === "private_note" && !canEdit) return null;
                     const val = entry.customFields?.[field.key];
+                    if (!isMeaningfulValue(val)) return null;
                     return (
                       <div
                         key={field.key}
@@ -1849,17 +1968,20 @@ export function EntryDetailView({
                           </div>
                         ) : (
                           <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
-                            {val !== undefined && val !== null && val !== ""
-                              ? typeof val === "number"
-                                ? `${val.toLocaleString("vi-VN")}${field.unit ? ` ${field.unit}` : ""}`
-                                : String(val)
-                              : "—"}
+                            {typeof val === "number"
+                              ? `${val.toLocaleString("vi-VN")}${field.unit ? ` ${field.unit}` : ""}`
+                              : String(val)}
                           </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
+                <CustomProfileBlocksRenderer
+                  layout={entry.profileLayout}
+                  tabId="details"
+                  onOpenImage={(url, title, cap) => openEntryLightbox(url, title, cap)}
+                />
               </div>
             )}
 
@@ -2097,7 +2219,7 @@ export function EntryDetailView({
 
             {/* Tab 8: Gallery */}
             {activeTab === "gallery" && (
-              <div>
+              <div className="space-y-4">
                 {entry.gallery.length === 0 ? (
                   <div className="text-center py-8 text-xs text-[var(--text-muted)]">
                     <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-40" /> Chưa có hình ảnh nào.
@@ -2108,15 +2230,45 @@ export function EntryDetailView({
                       <button
                         key={img.id}
                         type="button"
-                        onClick={() => setLightboxImg({ url: img.fullUrl || img.thumbUrl, caption: img.caption })}
-                        className="rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-base)] text-left hover:border-[var(--accent)] transition cursor-pointer"
+                        onClick={() =>
+                          openEntryLightbox(
+                            img.fullUrl || img.thumbUrl,
+                            img.caption || entry.title,
+                            img.caption
+                          )
+                        }
+                        className="group rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-base)] text-left hover:border-[var(--accent)] transition cursor-zoom-in"
                       >
-                        <img src={img.thumbUrl || img.fullUrl} alt={img.alt || img.caption} loading="lazy" decoding="async" className="w-full h-44 object-cover" />
-                        {img.caption && <div className="p-2.5 text-xs text-[var(--text-secondary)]">{img.caption}</div>}
+                        <img
+                          src={img.thumbUrl || img.fullUrl}
+                          alt={img.alt || img.caption}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-44 object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        {isMeaningfulValue(img.caption) && (
+                          <div className="p-2.5 text-xs text-[var(--text-secondary)]">{img.caption}</div>
+                        )}
                       </button>
                     ))}
                   </div>
                 )}
+                <CustomProfileBlocksRenderer
+                  layout={entry.profileLayout}
+                  tabId="gallery"
+                  onOpenImage={(url, title, cap) => openEntryLightbox(url, title, cap)}
+                />
+              </div>
+            )}
+
+            {/* Custom Tab Panel */}
+            {(entry.profileLayout?.customTabs || []).some((ct) => ct.id === activeTab) && (
+              <div className="space-y-4">
+                <CustomProfileBlocksRenderer
+                  layout={entry.profileLayout}
+                  tabId={activeTab}
+                  onOpenImage={(url, title, cap) => openEntryLightbox(url, title, cap)}
+                />
               </div>
             )}
           </div>
@@ -2469,13 +2621,12 @@ export function EntryDetailView({
         />
       )}
 
-      {lightboxImg && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setLightboxImg(null)}>
-          <div className="max-w-4xl max-h-[90vh] space-y-2 text-center">
-            <img src={lightboxImg.url} alt={lightboxImg.caption} className="max-h-[80vh] rounded-xl border border-[var(--border-strong)] mx-auto" />
-            {lightboxImg.caption && <p className="text-sm text-white/85">{lightboxImg.caption}</p>}
-          </div>
-        </div>
+      {lightboxState && (
+        <ImageLightboxModal
+          images={lightboxState.items}
+          initialIndex={lightboxState.index}
+          onClose={() => setLightboxState(null)}
+        />
       )}
     </div>
   );

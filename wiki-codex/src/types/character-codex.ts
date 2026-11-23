@@ -1,4 +1,5 @@
 import type { UserRole } from "./codex";
+import type { EntityProfileLayoutConfig } from "@/lib/empty-field-engine";
 
 /* ==================== ACCESS CONTROL, SPOILER & VERIFICATION ==================== */
 export type ContentAccessLevel =
@@ -85,6 +86,8 @@ export interface CharacterRecord {
   socialStanding: CharacterSocialStanding;
   /** Group 15: Trivia & Secrets */
   trivia: CharacterTriviaProfile;
+  /** V2 Universal Profile Layout & 3-Level Freeform Tab/Block/Field CRUD Config */
+  profileLayout?: EntityProfileLayoutConfig;
   createdBy: string;
   updatedBy: string;
   createdAt: string;

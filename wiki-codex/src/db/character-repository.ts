@@ -191,9 +191,21 @@ export async function saveCharacterState(state: CharacterCodexDatabaseState): Pr
   if (!fs.existsSync(LOCAL_DATA_DIR)) {
     fs.mkdirSync(LOCAL_DATA_DIR, { recursive: true });
   }
-  const tmpFile = `${LOCAL_CHAR_FILE}.tmp`;
-  fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2), "utf-8");
-  fs.renameSync(tmpFile, LOCAL_CHAR_FILE);
+  const jsonPayload = JSON.stringify(state, null, 2);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const tmpFile = `${LOCAL_CHAR_FILE}.${process.pid}.${Date.now()}.${attempt}.tmp`;
+    try {
+      fs.writeFileSync(tmpFile, jsonPayload, "utf-8");
+      fs.renameSync(tmpFile, LOCAL_CHAR_FILE);
+      break;
+    } catch {
+      try {
+        if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+      } catch {
+        // ignore
+      }
+    }
+  }
 }
 
 /** Hydrate a full 17-group character dossier with strict section-level RBAC filtering */
@@ -576,13 +588,13 @@ export async function createCharacterDossier(
     deathDate: payload.character.deathDate || "",
     deathYear: payload.character.deathYear ?? null,
     gender: payload.character.gender || "",
-    race: payload.character.race || "Nhân tộc",
+    race: payload.character.race ?? "",
     nationality: payload.character.nationality || "",
     hometown: payload.character.hometown || "",
     birthPlace: payload.character.birthPlace || "",
     residence: payload.character.residence || "",
-    originWorld: payload.character.originWorld || "Aethelgard Prime",
-    currentWorld: payload.character.currentWorld || "Aethelgard Prime",
+    originWorld: payload.character.originWorld ?? "",
+    currentWorld: payload.character.currentWorld ?? "",
     occupation: payload.character.occupation || "",
     position: payload.character.position || "",
     rank: payload.character.rank || "",
@@ -645,6 +657,7 @@ export async function createCharacterDossier(
       personalSecrets: [],
       funDetails: []
     },
+    profileLayout: payload.character.profileLayout,
     createdBy: editorName,
     updatedBy: editorName,
     createdAt: now,

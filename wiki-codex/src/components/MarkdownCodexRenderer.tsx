@@ -5,6 +5,7 @@ import { BookMarked, Eye, EyeOff, Languages, Sparkles } from "lucide-react";
 import type { ConlangLanguage, GlossaryTerm } from "@/types/codex";
 import { translateVietnameseToConlang } from "@/lib/conlang";
 import { normalizeVietnamese } from "@/lib/vietnamese";
+import { ImageLightboxModal, type LightboxImageItem } from "./ImageLightboxModal";
 
 export interface LinkLookupItem {
   id: string;
@@ -134,6 +135,7 @@ export function MarkdownCodexRenderer({
 }: MarkdownCodexRendererProps) {
   const [hoveredLink, setHoveredLink] = useState<LinkLookupItem | null>(null);
   const [activeGlossary, setActiveGlossary] = useState<GlossaryTerm | null>(null);
+  const [inlineLightbox, setInlineLightbox] = useState<LightboxImageItem | null>(null);
 
   const lookupMap = new Map<string, LinkLookupItem>();
   for (const item of linkLookup) {
@@ -471,6 +473,46 @@ export function MarkdownCodexRenderer({
                 );
               }
 
+              const imgMatch = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(trimmed);
+              if (imgMatch) {
+                const altText = imgMatch[1].trim();
+                const imgUrl = imgMatch[2].trim();
+                return (
+                  <figure
+                    key={lIdx}
+                    className="my-3 rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-black/35 max-w-2xl"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setInlineLightbox({
+                          url: imgUrl,
+                          title: altText || "Hình ảnh tư liệu",
+                          caption: altText || undefined
+                        })
+                      }
+                      className="group relative block w-full text-left cursor-zoom-in"
+                      title="Nhấn để phóng to ảnh"
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={altText || "Hình ảnh tư liệu"}
+                        loading="lazy"
+                        className="w-full max-h-80 object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                      />
+                      <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/75 text-[10px] text-amber-200 opacity-0 group-hover:opacity-100 transition">
+                        Xem ảnh lớn
+                      </span>
+                    </button>
+                    {altText && (
+                      <figcaption className="px-3 py-2 text-xs text-[var(--text-muted)] italic border-t border-[var(--border-subtle)]">
+                        {altText}
+                      </figcaption>
+                    )}
+                  </figure>
+                );
+              }
+
               return (
                 <p key={lIdx} className="codex-prose text-[var(--text-primary)]/90">
                   {renderInline(trimmed)}
@@ -480,6 +522,13 @@ export function MarkdownCodexRenderer({
           </div>
         );
       })}
+      {inlineLightbox && (
+        <ImageLightboxModal
+          images={[inlineLightbox]}
+          initialIndex={0}
+          onClose={() => setInlineLightbox(null)}
+        />
+      )}
     </div>
   );
 }
