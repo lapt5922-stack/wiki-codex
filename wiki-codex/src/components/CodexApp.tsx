@@ -109,6 +109,7 @@ import { WorldAnalyticsDashboard } from "./WorldAnalyticsDashboard";
 import { UnifiedCodexWorkspace, type UnifiedCodexTab } from "./UnifiedCodexWorkspace";
 import { UnifiedCreateDossierModal } from "./UnifiedCreateDossierModal";
 import { HistoricalPerspectiveArchiveView } from "./HistoricalPerspectiveArchiveView";
+import { WorldPulseStatsView } from "./WorldPulseStatsView";
 import { classifyEntryModule } from "@/lib/codex-modules";
 import {
   AuthModal,
@@ -1054,6 +1055,11 @@ export function CodexApp() {
                 recentIds={recentIds}
                 onOpenEntry={handleOpenEntry}
                 onNavigate={(sec) => setSection(sec as MainSection)}
+              />
+              <WorldPulseStatsView
+                workspaceId={activeWorkspaceId}
+                canEdit={canEdit}
+                onOpenEntry={handleOpenEntry}
               />
               <AlmanacLoreTrailsPanel
                 onOpenEntry={handleOpenEntry}
