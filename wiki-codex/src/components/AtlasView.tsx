@@ -7,6 +7,18 @@ import type { AtlasMap, AtlasPin, AtlasRoute, EntryCardProjection } from "@/type
 import { calculateRouteDistanceKm, estimateTravelDays } from "@/lib/v2-engines";
 import { computeRouteDistanceKm, computeTravelTimes, DEFAULT_TRAVEL_MODES } from "@/lib/v4-engines";
 import { IconSigilPicker } from "./IconSigilPicker";
+import { DraggableScrollArea } from "./DraggableScrollArea";
+
+const WORLD_ATLAS_8_LAYERS = [
+  { id: "political", label: "Chính trị (Biên giới)" },
+  { id: "terrain", label: "Địa hình (Núi & Rừng)" },
+  { id: "climate", label: "Khí hậu & Sinh thái" },
+  { id: "population", label: "Phân bố Dân cư" },
+  { id: "civilization", label: "Phạm vi Văn minh" },
+  { id: "historical", label: "Lãnh thổ Lịch sử" },
+  { id: "cultural", label: "Khu vực Văn hóa" },
+  { id: "location", label: "Địa danh & Kỳ quan" }
+] as const;
 
 const PlanetaryAtlasStudio = dynamic(
   () => import("./PlanetaryAtlasStudio").then((m) => m.PlanetaryAtlasStudio),
@@ -54,6 +66,9 @@ export function AtlasView({
 
   // V2 Layers & Routes & Distance Ruler
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [activeWorldLayers, setActiveWorldLayers] = useState<Set<string>>(
+    () => new Set(["political", "terrain", "location"])
+  );
   const [showRoutes, setShowRoutes] = useState(true);
   const [mode, setMode] = useState<"view" | "add_pin" | "ruler" | "draw_route">("view");
   const [rulerPoints, setRulerPoints] = useState<Array<{ xPercent: number; yPercent: number }>>([]);
@@ -248,9 +263,45 @@ export function AtlasView({
         </div>
         <span className="text-[11px] text-[var(--text-muted)]">
           {atlasTab === "planetary"
-            ? "Chế độ Bách khoa Wiki: 360 quốc gia, 7 thấu kính địa lý – ngoại giao, không yếu tố game."
+            ? "Bản đồ Địa lý Bách khoa: 360 quốc gia · 8 lớp dữ liệu bật/tắt · Lịch sử theo mốc thời gian."
             : "Tải bản đồ riêng, gắn ghim liên kết bài viết và vẽ hành trình trong Workspace."}
         </span>
+      </div>
+
+      {/* 8-Layer World Atlas Toggle Bar (Draggable & Touch-Swipeable) */}
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/80 px-3 py-2 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-[var(--accent)] inline-flex items-center gap-1 shrink-0">
+          <Layers className="w-3.5 h-3.5" /> 8 Lớp Bản đồ:
+        </span>
+        <div className="flex-1 min-w-0">
+          <DraggableScrollArea ariaLabel="8 lớp bản đồ thế giới" innerClassName="flex items-center gap-1.5">
+            {WORLD_ATLAS_8_LAYERS.map((layer) => {
+              const on = activeWorldLayers.has(layer.id);
+              return (
+                <button
+                  key={layer.id}
+                  type="button"
+                  onClick={() =>
+                    setActiveWorldLayers((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(layer.id)) next.delete(layer.id);
+                      else next.add(layer.id);
+                      return next;
+                    })
+                  }
+                  className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] border cursor-pointer transition ${
+                    on
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
+                      : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {on ? "✓ " : ""}
+                  {layer.label}
+                </button>
+              );
+            })}
+          </DraggableScrollArea>
+        </div>
       </div>
 
       {atlasTab === "planetary" ? (

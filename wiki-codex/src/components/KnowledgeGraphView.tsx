@@ -9,6 +9,7 @@ import type {
   LineageNode,
   ShortestPathResult
 } from "@/lib/graph";
+import { GenealogyExplorerView } from "./GenealogyExplorerView";
 
 interface KnowledgeGraphViewProps {
   workspaceId: string;
@@ -21,7 +22,9 @@ export function KnowledgeGraphView({
   entries,
   onOpenEntry
 }: KnowledgeGraphViewProps) {
-  const [subTab, setSubTab] = useState<"graph" | "lineage">("graph");
+  const [subTab, setSubTab] = useState<"graph" | "lineage" | "genealogy">("graph");
+  const [depthLimit, setDepthLimit] = useState<number>(2);
+  const [graphZoom, setGraphZoom] = useState<number>(1);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [totalEntries, setTotalEntries] = useState(0);
@@ -46,7 +49,7 @@ export function KnowledgeGraphView({
     });
     if (focusId) {
       params.set("focusEntryId", focusId);
-      params.set("depth", "2");
+      params.set("depth", String(depthLimit));
     }
     fetch(`/api/graph?${params}`)
       .then((r) => r.json())
@@ -56,7 +59,7 @@ export function KnowledgeGraphView({
         setTotalEntries(data.graph?.totalEntriesInWorkspace || 0);
         setTruncated(Boolean(data.graph?.truncated));
       });
-  }, [workspaceId, focusId]);
+  }, [workspaceId, focusId, depthLimit]);
 
   useEffect(() => {
     const root = lineageRootId || entries[0]?.id;
@@ -158,6 +161,17 @@ export function KnowledgeGraphView({
           </button>
           <button
             type="button"
+            onClick={() => setSubTab("genealogy")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer ${
+              subTab === "genealogy"
+                ? "bg-[var(--accent-soft)] text-[var(--accent)] font-medium"
+                : "text-[var(--text-muted)]"
+            }`}
+          >
+            <GitBranch className="w-3.5 h-3.5" /> Gia phả &amp; Triều đại
+          </button>
+          <button
+            type="button"
             onClick={() => setSubTab("lineage")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer ${
               subTab === "lineage"
@@ -165,12 +179,14 @@ export function KnowledgeGraphView({
                 : "text-[var(--text-muted)]"
             }`}
           >
-            <GitBranch className="w-3.5 h-3.5" /> Gia phả / Phân cấp
+            <GitBranch className="w-3.5 h-3.5" /> Cây Phân cấp
           </button>
         </div>
       </div>
 
-      {subTab === "graph" ? (
+      {subTab === "genealogy" ? (
+        <GenealogyExplorerView workspaceId={workspaceId} />
+      ) : subTab === "graph" ? (
         <>
           {/* Controls: Ego Graph + Shortest Path Finder */}
           <div className="codex-card rounded-2xl p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 text-xs">
@@ -179,18 +195,38 @@ export function KnowledgeGraphView({
                 <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" />
                 Chế độ Lân cận (Ego Graph cho kho hàng chục nghìn mục)
               </label>
-              <select
-                value={focusId}
-                onChange={(e) => setFocusId(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5"
-              >
-                <option value="">Toàn cảnh (Top 120 nút trung tâm)</option>
-                {entries.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    Tập trung quanh: {e.sigil} {e.title}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={focusId}
+                  onChange={(e) => setFocusId(e.target.value)}
+                  className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5"
+                >
+                  <option value="">Toàn cảnh (Top 120 nút trung tâm)</option>
+                  {entries.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      Tập trung quanh: {e.sigil} {e.title}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={depthLimit}
+                  onChange={(e) => setDepthLimit(Number(e.target.value))}
+                  title="Giới hạn độ sâu hiển thị"
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1.5 font-mono"
+                >
+                  <option value={1}>Độ sâu 1</option>
+                  <option value={2}>Độ sâu 2</option>
+                  <option value={3}>Độ sâu 3</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setGraphZoom((z) => (z >= 1.5 ? 1 : +(z + 0.25).toFixed(2)))}
+                  title="Phóng to / Đặt lại đồ thị"
+                  className="px-2 py-1.5 rounded-lg border border-[var(--border-subtle)] font-mono hover:border-[var(--accent)] cursor-pointer"
+                >
+                  {Math.round(graphZoom * 100)}%
+                </button>
+              </div>
             </div>
 
             <div className="lg:col-span-8 space-y-1">
