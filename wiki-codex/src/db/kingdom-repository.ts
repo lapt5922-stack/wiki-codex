@@ -715,9 +715,27 @@ async function saveOverlayStore(store: KingdomOverlayStore): Promise<void> {
     }
   }
   if (!fs.existsSync(LOCAL_DATA_DIR)) fs.mkdirSync(LOCAL_DATA_DIR, { recursive: true });
-  const tmp = `${LOCAL_KINGDOM_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), "utf-8");
-  fs.renameSync(tmp, LOCAL_KINGDOM_FILE);
+  const json = JSON.stringify(store, null, 2);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const tmp = `${LOCAL_KINGDOM_FILE}.${process.pid}.${Date.now()}.${attempt}.tmp`;
+    try {
+      fs.writeFileSync(tmp, json, "utf-8");
+      fs.renameSync(tmp, LOCAL_KINGDOM_FILE);
+      return;
+    } catch {
+      try {
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      } catch {
+        // ignore
+      }
+      try {
+        fs.writeFileSync(LOCAL_KINGDOM_FILE, json, "utf-8");
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
+      }
+    }
+  }
 }
 
 function getAllActiveKingdomDossiers(store: KingdomOverlayStore, workspaceId: string): KingdomHydratedDossier[] {

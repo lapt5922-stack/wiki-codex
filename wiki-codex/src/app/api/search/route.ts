@@ -2,6 +2,7 @@ import { loadState } from "@/db/repository";
 import { queryCharacters } from "@/db/character-repository";
 import { queryKingdoms } from "@/db/kingdom-repository";
 import { matchesVietnameseQuery } from "@/lib/vietnamese";
+import { resolveUniversalId } from "@/lib/universal-id";
 import { filterEntriesForRole } from "@/lib/rbac";
 import { getRequestUser, jsonOk } from "@/lib/api-helpers";
 
@@ -32,7 +33,8 @@ export async function GET(request: Request) {
       const customText = Object.values(e.customFields ?? {})
         .filter((v) => typeof v === "string" || typeof v === "number")
         .join(" ");
-      const haystack = `${e.title} ${e.subtitle} ${(e.aliases || []).join(" ")} ${e.summary} ${e.tags.join(" ")} ${extraText} ${customText}`;
+      const uid = resolveUniversalId(e.id, "lore");
+      const haystack = `${uid} ${e.id} ${e.title} ${e.subtitle} ${(e.aliases || []).join(" ")} ${e.summary} ${e.tags.join(" ")} ${extraText} ${customText}`;
       return matchesVietnameseQuery(haystack, q);
     })
     .slice(0, 15)
