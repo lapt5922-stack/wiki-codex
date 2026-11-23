@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Activity,
+  Archive,
   ArrowUp,
   Bookmark,
   BookOpen,
@@ -107,6 +108,7 @@ import { BookmarksDrawer } from "./BookmarksDrawer";
 import { WorldAnalyticsDashboard } from "./WorldAnalyticsDashboard";
 import { UnifiedCodexWorkspace, type UnifiedCodexTab } from "./UnifiedCodexWorkspace";
 import { UnifiedCreateDossierModal } from "./UnifiedCreateDossierModal";
+import { HistoricalPerspectiveArchiveView } from "./HistoricalPerspectiveArchiveView";
 import { classifyEntryModule } from "@/lib/codex-modules";
 import {
   AuthModal,
@@ -126,6 +128,7 @@ type MainSection =
   | "chronicles"
   | "graph"
   | "timeline"
+  | "archives"
   | "calendar"
   | "atlas"
   | "loreboard"
@@ -558,6 +561,7 @@ export function CodexApp() {
     { id: "graph", label: "Đồ thị & Gia phả", icon: Network },
     { id: "loreboard", label: "Loreboard", icon: StickyNote },
     { id: "timeline", label: "Biên niên sử", icon: Hourglass },
+    { id: "archives", label: "Tư liệu & Góc nhìn", icon: Archive },
     { id: "calendar", label: "Lịch Thế Giới", icon: Calendar },
     { id: "atlas", label: "Bản đồ Atlas", icon: MapIcon },
     { id: "media", label: "Media Vault", icon: ImageIcon },
@@ -1217,6 +1221,8 @@ export function CodexApp() {
             <LoreboardView workspaceId={activeWorkspaceId} loreboards={loreboards} entries={entries} canEdit={canEdit} onOpenEntry={handleOpenEntry} onRefresh={loadWorkspaceMeta} />
           ) : section === "timeline" ? (
             <TimelineView workspaceId={activeWorkspaceId} entries={entries} canEdit={canEdit} onOpenEntry={handleOpenEntry} />
+          ) : section === "archives" ? (
+            <HistoricalPerspectiveArchiveView workspaceId={activeWorkspaceId} canEdit={canEdit} />
           ) : section === "calendar" ? (
             <CalendarView workspaceId={activeWorkspaceId} calendars={calendars} timelineEvents={timelineEvents} canEdit={canEdit} onRefresh={loadWorkspaceMeta} />
           ) : section === "atlas" ? (
