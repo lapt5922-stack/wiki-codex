@@ -506,6 +506,7 @@ export function projectEntryToCard(
     cardHighlights: extractCardHighlights(entry, entryType),
     extraFieldCount: (entry.extraFields ?? []).filter((f) => f.kind !== "private_note").length,
     variantCount: (entry.variants ?? []).length,
+    emblemConfig: entry.emblemConfig,
     economySummary: extractEconomySummary(entry),
     featured: entry.featured,
     spoilerGate: entry.spoilerGate,

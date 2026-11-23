@@ -34,6 +34,7 @@ interface KingdomCodexHubProps {
   onViewOnAtlas?: (atlasNationId: string) => void;
   onOpenWikiEntry?: (entryId: string) => void;
   onOpenCharacter?: (charId: string) => void;
+  autoOpenCreateSignal?: number;
 }
 
 export function KingdomCodexHub({
@@ -41,7 +42,8 @@ export function KingdomCodexHub({
   canEdit,
   onViewOnAtlas,
   onOpenWikiEntry,
-  onOpenCharacter
+  onOpenCharacter,
+  autoOpenCreateSignal = 0
 }: KingdomCodexHubProps) {
   const { isMobile, isTablet } = useDeviceUI();
 
@@ -75,6 +77,13 @@ export function KingdomCodexHub({
   const [createModal, setCreateModal] = useState<{ open: boolean; cloneFromId?: string; cloneLabel?: string }>({
     open: false
   });
+
+  useEffect(() => {
+    if (autoOpenCreateSignal > 0 && canEdit) {
+      setActiveKingdomId(null);
+      setCreateModal({ open: true });
+    }
+  }, [autoOpenCreateSignal, canEdit]);
   const [newName, setNewName] = useState("");
   const [newCapital, setNewCapital] = useState("");
   const [newContinent, setNewContinent] = useState("Lục địa Aurelia");

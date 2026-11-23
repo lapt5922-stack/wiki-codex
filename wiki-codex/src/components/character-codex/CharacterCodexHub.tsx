@@ -38,12 +38,14 @@ interface CharacterCodexHubProps {
   workspaceId: string;
   canEdit: boolean;
   onOpenNationEntry?: (entryId: string) => void;
+  autoOpenCreateSignal?: number;
 }
 
 export function CharacterCodexHub({
   workspaceId,
   canEdit,
-  onOpenNationEntry
+  onOpenNationEntry,
+  autoOpenCreateSignal = 0
 }: CharacterCodexHubProps) {
   const { isMobile, isTablet } = useDeviceUI();
 
@@ -76,6 +78,13 @@ export function CharacterCodexHub({
     open: false,
     dossier: null
   });
+
+  useEffect(() => {
+    if (autoOpenCreateSignal > 0 && canEdit) {
+      setActiveCharacterId(null);
+      setEditorState({ open: true, dossier: null });
+    }
+  }, [autoOpenCreateSignal, canEdit]);
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);

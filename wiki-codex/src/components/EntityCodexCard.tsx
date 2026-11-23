@@ -4,6 +4,7 @@ import React from "react";
 import { CheckSquare, EyeOff, Link2, Lock, Sparkles, Square } from "lucide-react";
 import type { Category, EntityCardStyle, EntryCardProjection, EntryType } from "@/types/codex";
 import { classifyPowerTier, formatUnboundedPower } from "@/lib/v3-engines";
+import { EntityEmblemSVG } from "./EntityVisualWidgets";
 
 interface EntityCodexCardProps {
   entry: EntryCardProjection;
@@ -148,25 +149,32 @@ export function EntityCodexCard({
             </div>
             {tier && (
               <span
-                className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold backdrop-blur-md border shadow-md"
+                className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-semibold backdrop-blur-md border"
                 style={{
-                  backgroundColor: "rgba(10,12,24,0.85)",
-                  borderColor: `${tier.color}99`,
+                  backgroundColor: "rgba(10,12,24,0.82)",
+                  borderColor: `${tier.color}77`,
                   color: tier.color
                 }}
               >
-                ⚡ {formatUnboundedPower(entry.powerLevel, entry.powerInfinite)}
+                ✦ Hạng {formatUnboundedPower(entry.powerLevel, entry.powerInfinite)}
               </span>
             )}
           </div>
           <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="font-display font-bold text-lg text-white leading-tight truncate drop-shadow">
-                {entry.title}
-              </h3>
-              {entry.subtitle && (
-                <p className="text-[11px] text-purple-200/85 italic truncate">{entry.subtitle}</p>
+            <div className="flex items-end gap-2 min-w-0">
+              {entry.emblemConfig && (
+                <div className="shrink-0 drop-shadow-md">
+                  <EntityEmblemSVG config={entry.emblemConfig} sigil={entry.sigil} size={34} />
+                </div>
               )}
+              <div className="min-w-0">
+                <h3 className="font-display font-bold text-lg text-white leading-tight truncate drop-shadow">
+                  {entry.title}
+                </h3>
+                {entry.subtitle && (
+                  <p className="text-[11px] text-purple-200/85 italic truncate">{entry.subtitle}</p>
+                )}
+              </div>
             </div>
             {(entry.variantCount ?? 0) > 1 && (
               <span className="px-1.5 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/50 text-[10px] font-mono text-amber-200 shrink-0">
@@ -262,24 +270,28 @@ export function EntityCodexCard({
               </span>
             </div>
             {tier && (
-              <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/60 text-[10px] font-mono font-bold text-amber-200">
-                ⚡ {formatUnboundedPower(entry.powerLevel, entry.powerInfinite)}
+              <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-400/50 text-[10px] font-mono font-semibold text-amber-200">
+                ✦ Hạng {formatUnboundedPower(entry.powerLevel, entry.powerInfinite)}
               </span>
             )}
           </div>
         </div>
 
-        {/* Floating Royal Crest Medallion */}
+        {/* Floating Royal Crest Medallion (Real Heraldry SVG Emblem) */}
         <div className="relative px-4 pt-6 pb-3.5 flex-1 flex flex-col gap-2.5">
-          <div
-            className="absolute -top-6 left-4 w-12 h-12 rounded-xl border-2 flex items-center justify-center text-2xl shadow-xl"
-            style={{
-              backgroundColor: "#0f172a",
-              borderColor: accent,
-              color: accent
-            }}
-          >
-            {entry.sigil}
+          <div className="absolute -top-6 left-3.5 drop-shadow-xl">
+            <EntityEmblemSVG
+              config={
+                entry.emblemConfig || {
+                  primaryColor: accent,
+                  secondaryColor: "#FDE68A",
+                  shape: "crest",
+                  motif: "crown"
+                }
+              }
+              sigil={entry.sigil}
+              size={48}
+            />
           </div>
 
           <div className="pl-14 -mt-4">
@@ -650,15 +662,33 @@ export function EntityCodexCard({
           )}
         </div>
 
-        <div>
-          <h3 className="font-display font-bold text-base sm:text-lg text-[var(--text-primary)] leading-snug line-clamp-1">
-            {entry.title}
-          </h3>
-          {entry.subtitle && (
-            <p className="text-[11px] italic text-[var(--text-muted)] line-clamp-1 mt-0.5">
-              {entry.subtitle}
-            </p>
+        <div className="flex items-start gap-2.5">
+          {(entry.emblemConfig || style === "house" || style === "organization" || style === "religion") && (
+            <div className="shrink-0 mt-0.5">
+              <EntityEmblemSVG
+                config={
+                  entry.emblemConfig || {
+                    primaryColor: accent,
+                    secondaryColor: "#FDE68A",
+                    shape: style === "house" ? "shield" : style === "organization" ? "banner" : "seal",
+                    motif: style === "house" ? "star" : style === "organization" ? "scales" : "sun"
+                  }
+                }
+                sigil={entry.sigil}
+                size={40}
+              />
+            </div>
           )}
+          <div className="min-w-0">
+            <h3 className="font-display font-bold text-base sm:text-lg text-[var(--text-primary)] leading-snug line-clamp-1">
+              {entry.title}
+            </h3>
+            {entry.subtitle && (
+              <p className="text-[11px] italic text-[var(--text-muted)] line-clamp-1 mt-0.5">
+                {entry.subtitle}
+              </p>
+            )}
+          </div>
         </div>
 
         {highlights.length > 0 && (

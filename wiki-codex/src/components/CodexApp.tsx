@@ -270,6 +270,20 @@ export function CodexApp() {
     return map;
   }, [categoryTree]);
 
+  // True unfiltered workspace total (never drops to 3 when filtering a 3-item category!)
+  const workspaceTotalEntries = React.useMemo(() => {
+    const topSum = categoryTree.reduce(
+      (sum, node) => sum + (node.totalUniqueCount ?? node.directCount ?? 0),
+      0
+    );
+    return Math.max(topSum, totalEntries);
+  }, [categoryTree, totalEntries]);
+
+  const topLevelCategories = React.useMemo(
+    () => categories.filter((c) => !c.parentId),
+    [categories]
+  );
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("wiki_codex_theme") as FantasyThemeId | null;
     if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
@@ -565,12 +579,39 @@ export function CodexApp() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [codexTab, setCodexTab] = useState<UnifiedCodexTab>("all");
   const [unifiedCreateOpen, setUnifiedCreateOpen] = useState(false);
+  const [charCreateSignal, setCharCreateSignal] = useState(0);
+  const [kingCreateSignal, setKingCreateSignal] = useState(0);
 
   const openUnifiedCodex = useCallback((tab: UnifiedCodexTab = "all") => {
     setCodexTab(tab);
     setSection("database");
     setActiveEntryId(null);
   }, []);
+
+  const handleSelectSidebarCategory = useCallback(
+    (cid: string | null) => {
+      if (cid) {
+        const cat = categories.find((c) => c.id === cid);
+        const slug = (cat?.slug || cid).toLowerCase();
+        if (slug.includes("vuong-quoc") || cid === "cat-vuong-quoc") {
+          setSelectedCategoryId(null);
+          openUnifiedCodex("kingdom");
+          return;
+        }
+        if (slug.includes("nhan-vat") || cid === "cat-nhan-vat") {
+          setSelectedCategoryId(null);
+          openUnifiedCodex("character");
+          return;
+        }
+      }
+      setCodexTab("all");
+      setSelectedCategoryId(cid);
+      setSection("database");
+      setActiveEntryId(null);
+      setPage(1);
+    },
+    [categories, openUnifiedCodex]
+  );
 
   useEffect(() => {
     const onScroll = () => setShowBackToTop(window.scrollY > 360);
@@ -888,13 +929,8 @@ export function CodexApp() {
                   tree={categoryTree}
                   selectedCategoryId={selectedCategoryId}
                   canEdit={canEdit}
-                  totalVisibleEntries={totalEntries}
-                  onSelectCategory={(cid) => {
-                    setSelectedCategoryId(cid);
-                    setSection("database");
-                    setActiveEntryId(null);
-                    setPage(1);
-                  }}
+                  totalVisibleEntries={workspaceTotalEntries}
+                  onSelectCategory={handleSelectSidebarCategory}
                   onRefresh={refreshAll}
                   filterQuery={catFilter}
                   onFilterChange={setCatFilter}
@@ -984,29 +1020,29 @@ export function CodexApp() {
           ) : section === "home" && activeWorkspace ? (
             <div className="space-y-4 animate-codex-fade-up">
               <CategorySliderRibbon
-                categories={categories}
+                categories={topLevelCategories}
                 categoryCounts={categoryCounts}
-                totalEntries={totalEntries}
+                totalEntries={workspaceTotalEntries}
                 selectedCategoryId={selectedCategoryId || ""}
-                onSelectCategory={(cid) => {
-                  setSelectedCategoryId(cid || null);
-                  setSection("database");
-                  setPage(1);
-                }}
+                onSelectCategory={(cid) => handleSelectSidebarCategory(cid || null)}
               />
               <WorldAnalyticsDashboard
                 workspaceId={activeWorkspaceId}
-                totalEntries={totalEntries}
+                totalEntries={workspaceTotalEntries}
                 mediaCount={mediaAssets.length}
                 onNavigate={(sec) => {
-                  setSection(sec as MainSection);
-                  setActiveEntryId(null);
+                  if (sec === "characters") openUnifiedCodex("character");
+                  else if (sec === "kingdoms") openUnifiedCodex("kingdom");
+                  else {
+                    setSection(sec as MainSection);
+                    setActiveEntryId(null);
+                  }
                 }}
               />
               <GrandHallView
                 workspace={activeWorkspace}
                 entries={entries}
-                totalEntries={totalEntries}
+                totalEntries={workspaceTotalEntries}
                 categoryCount={categories.length}
                 entryTypeCount={entryTypes.length}
                 collections={collections}
@@ -1036,7 +1072,7 @@ export function CodexApp() {
                 setCodexTab(nextTab);
                 setSection("database");
               }}
-              totalEntries={totalEntries}
+              totalEntries={workspaceTotalEntries}
               canEdit={canEdit}
               onOpenUnifiedCreate={() => setUnifiedCreateOpen(true)}
               onCreateInModule={(mod) =>
@@ -1052,6 +1088,7 @@ export function CodexApp() {
                   workspaceId={activeWorkspaceId}
                   canEdit={canEdit}
                   onOpenNationEntry={(entryId) => handleOpenEntry(entryId)}
+                  autoOpenCreateSignal={charCreateSignal}
                 />
               )}
               renderKingdomHub={() => (
@@ -1065,6 +1102,7 @@ export function CodexApp() {
                   }}
                   onOpenWikiEntry={(entryId) => handleOpenEntry(entryId)}
                   onOpenCharacter={() => openUnifiedCodex("character")}
+                  autoOpenCreateSignal={kingCreateSignal}
                 />
               )}
               renderDatabaseView={(activeMod) => {
@@ -1073,16 +1111,15 @@ export function CodexApp() {
                   : entries;
                 return (
                   <div className="space-y-4">
-                    <CategorySliderRibbon
-                      categories={categories}
-                      categoryCounts={categoryCounts}
-                      totalEntries={totalEntries}
-                      selectedCategoryId={selectedCategoryId || ""}
-                      onSelectCategory={(cid) => {
-                        setSelectedCategoryId(cid || null);
-                        setPage(1);
-                      }}
-                    />
+                    {(isMobile || isTablet) && (
+                      <CategorySliderRibbon
+                        categories={topLevelCategories}
+                        categoryCounts={categoryCounts}
+                        totalEntries={workspaceTotalEntries}
+                        selectedCategoryId={selectedCategoryId || ""}
+                        onSelectCategory={(cid) => handleSelectSidebarCategory(cid || null)}
+                      />
+                    )}
                     <DatabaseView
                       workspaceId={activeWorkspaceId}
                       entries={modEntries}
@@ -1136,6 +1173,7 @@ export function CodexApp() {
                       onCompareMatrix={(ids) => setMatrixIds(ids)}
                       onOpenBookMode={() => setBookModeOpen(true)}
                       onOpenRandom={handleOpenRandom}
+                      hideCreateButton
                     />
                   </div>
                 );
@@ -1324,11 +1362,9 @@ export function CodexApp() {
                 tree={categoryTree}
                 selectedCategoryId={selectedCategoryId}
                 canEdit={canEdit}
-                totalVisibleEntries={totalEntries}
+                totalVisibleEntries={workspaceTotalEntries}
                 onSelectCategory={(cid) => {
-                  setSelectedCategoryId(cid);
-                  setSection("database");
-                  setActiveEntryId(null);
+                  handleSelectSidebarCategory(cid);
                   setMobileDrawerOpen(false);
                 }}
                 onRefresh={refreshAll}
@@ -1434,8 +1470,14 @@ export function CodexApp() {
       <UnifiedCreateDossierModal
         open={unifiedCreateOpen}
         onClose={() => setUnifiedCreateOpen(false)}
-        onCreateCharacter={() => openUnifiedCodex("character")}
-        onCreateKingdom={() => openUnifiedCodex("kingdom")}
+        onCreateCharacter={() => {
+          openUnifiedCodex("character");
+          setCharCreateSignal((n) => n + 1);
+        }}
+        onCreateKingdom={() => {
+          openUnifiedCodex("kingdom");
+          setKingCreateSignal((n) => n + 1);
+        }}
         onCreateStandardEntry={(mod) =>
           setEditorState({
             open: true,

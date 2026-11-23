@@ -71,6 +71,7 @@ interface DatabaseViewProps {
   onCompareMatrix: (ids: string[]) => void;
   onOpenBookMode: () => void;
   onOpenRandom: () => void;
+  hideCreateButton?: boolean;
 }
 
 const STATUS_BADGE: Record<EntryStatus, { label: string; cls: string }> = {
@@ -115,7 +116,8 @@ export function DatabaseView({
   onBulkAction,
   onCompareMatrix,
   onOpenBookMode,
-  onOpenRandom
+  onOpenRandom,
+  hideCreateButton = false
 }: DatabaseViewProps) {
   const { isMobile, isTablet } = useDeviceUI();
   const [viewMode, setViewMode] = useState<"grid" | "magazine" | "list" | "table">("grid");
@@ -255,7 +257,7 @@ export function DatabaseView({
             <Shuffle className="w-3.5 h-3.5" />
           </button>
 
-          {canEdit && (
+          {canEdit && !hideCreateButton && (
             <button
               type="button"
               onClick={onCreateEntry}

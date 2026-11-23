@@ -449,6 +449,7 @@ export interface EntryCardProjection {
   cardHighlights?: Array<{ label: string; value: string; color?: string }>;
   extraFieldCount?: number;
   variantCount?: number;
+  emblemConfig?: EntityEmblemConfig;
   economySummary?: {
     primarySector: string;
     literacyRate: number;
