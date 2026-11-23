@@ -31,6 +31,9 @@ import {
 import type { KingdomHydratedDossier } from "@/types/kingdom-codex";
 import { EntityEmblemSVG } from "../EntityVisualWidgets";
 import { useDeviceUI } from "@/lib/device-ui";
+import { DraggableScrollArea } from "../DraggableScrollArea";
+import { toggleCodexBookmark } from "../BookmarksDrawer";
+import { exportShareableCodexCardPng } from "@/lib/codex-card-exporter";
 
 interface KingdomDetailViewProps {
   kingdomId: string;
@@ -281,6 +284,45 @@ export function KingdomDetailView({
           >
             <Download className="w-3.5 h-3.5" /> JSON
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              exportShareableCodexCardPng({
+                id: k.id,
+                title: k.officialName,
+                subtitle: `${k.governmentType} · ${k.continent}`,
+                badge: k.polityType.toUpperCase(),
+                summary: k.summary,
+                accentColor: accent,
+                stats: [
+                  { label: "Dân số", value: latestPop ? latestPop.totalPopulation.toLocaleString("vi-VN") : "—" },
+                  { label: "Diện tích", value: `${dossier.territory.areaKm2.toLocaleString("vi-VN")} km²` },
+                  { label: "GDP", value: latestEcon ? `${latestEcon.gdpValue.toLocaleString("vi-VN")}M` : "—" },
+                  { label: "Thủ đô", value: dossier.territory.capitalName || "—" }
+                ]
+              })
+            }
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs cursor-pointer"
+            title="Xuất thẻ tóm tắt PNG để chia sẻ"
+          >
+            <ImageIcon className="w-3.5 h-3.5" /> Thẻ PNG
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              toggleCodexBookmark({
+                id: k.id,
+                kind: "kingdom",
+                title: k.officialName,
+                subtitle: `${k.continent} · ${k.governmentType}`,
+                sigil: "👑"
+              })
+            }
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] text-amber-300 text-xs hover:border-[var(--accent)] cursor-pointer"
+            title="Ghim vào danh sách yêu thích"
+          >
+            ★ Ghim
+          </button>
           {canEdit && (
             <>
               <button
@@ -383,14 +425,14 @@ export function KingdomDetailView({
       {/* Main Content + Sticky Sidebar */}
       <div className={`grid grid-cols-1 ${isMobile ? "" : "lg:grid-cols-12"} gap-5 items-start`}>
         <div className={isMobile ? "space-y-4" : "lg:col-span-8 space-y-4"}>
-          {/* 16 Navigation Tabs */}
-          <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-1">
+          {/* 16 Navigation Tabs (Drag with Mouse / Swipe / Scrollbar) */}
+          <DraggableScrollArea ariaLabel="Các mục hồ sơ vương quốc" innerClassName="flex gap-1.5 px-1">
             {KINGDOM_TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id)}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
+                className={`shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                   activeTab === t.id
                     ? "bg-[var(--accent)] text-[#090e1c] font-bold shadow"
                     : "codex-card text-[var(--text-secondary)] hover:text-[var(--accent)]"
@@ -399,7 +441,7 @@ export function KingdomDetailView({
                 {t.label}
               </button>
             ))}
-          </div>
+          </DraggableScrollArea>
 
           {/* Tab Panel */}
           <div className="codex-card rounded-2xl p-4 sm:p-5 space-y-4 text-xs">

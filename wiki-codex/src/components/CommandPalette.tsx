@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { FolderTree, Globe2, Hourglass, MapPin, Search, X } from "lucide-react";
+import { Crown, FolderTree, Globe2, Hourglass, MapPin, Search, Users, X } from "lucide-react";
 import { buildPlanetaryAtlasBundle } from "@/lib/planetary-atlas/generator";
 import { matchesVietnameseQuery } from "@/lib/vietnamese";
 
@@ -11,7 +11,7 @@ interface CommandPaletteProps {
   onClose: () => void;
   onSelectEntry: (id: string) => void;
   onSelectCategory: (id: string) => void;
-  onOpenTab: (tab: "timeline" | "atlas") => void;
+  onOpenTab: (tab: "timeline" | "atlas" | "characters" | "kingdoms") => void;
   onSelectPlanetaryNation?: (nationId: string) => void;
 }
 
@@ -20,6 +20,8 @@ interface SearchResults {
   categories: Array<{ id: string; name: string; sigil: string; color: string }>;
   timelineEvents: Array<{ id: string; title: string; dateLabel: string; sigil: string }>;
   atlasPins: Array<{ id: string; label: string; entryId: string | null; sigil: string }>;
+  characters?: Array<{ id: string; fullName: string; race: string; symbol: string; titles: string[] }>;
+  kingdoms?: Array<{ id: string; officialName: string; continent: string; governmentType: string; capitalName: string }>;
 }
 
 export function CommandPalette({
@@ -106,7 +108,70 @@ export function CommandPalette({
           </button>
         </div>
 
-        <div className="max-h-[65vh] overflow-y-auto p-3 space-y-4">
+        <div className="max-h-[65vh] overflow-y-auto p-3 space-y-4 codex-scrollbar">
+          {/* Character Codex Results */}
+          {results.characters && results.characters.length > 0 && (
+            <div>
+              <div className="text-[11px] font-mono uppercase text-cyan-300 px-2 mb-1 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                Character Codex ({results.characters.length})
+              </div>
+              {results.characters.map((ch) => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => {
+                    onOpenTab("characters");
+                    onClose();
+                  }}
+                  className="w-full text-left flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl hover:bg-cyan-500/15 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-base">{ch.symbol}</span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+                        {ch.fullName}
+                      </div>
+                      <div className="text-xs text-[var(--text-muted)] truncate">
+                        {ch.id} · {ch.race} {ch.titles[0] ? `· ${ch.titles[0]}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Kingdom Codex Results */}
+          {results.kingdoms && results.kingdoms.length > 0 && (
+            <div>
+              <div className="text-[11px] font-mono uppercase text-amber-300 px-2 mb-1 flex items-center gap-1.5">
+                <Crown className="w-3.5 h-3.5" />
+                Kingdom Codex ({results.kingdoms.length})
+              </div>
+              {results.kingdoms.map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => {
+                    onOpenTab("kingdoms");
+                    onClose();
+                  }}
+                  className="w-full text-left flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl hover:bg-amber-500/15 transition cursor-pointer"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+                      {k.officialName}
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)] truncate">
+                      {k.id} · Thủ đô {k.capitalName} · {k.continent} · {k.governmentType}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* 360 Planetary Nations */}
           {matchedNations.length > 0 && onSelectPlanetaryNation && (
             <div>

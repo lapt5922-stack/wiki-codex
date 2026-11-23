@@ -40,6 +40,9 @@ import type {
 } from "@/types/character-codex";
 import { RELATION_LABELS_VI } from "@/lib/character-id";
 import { WORLD_CURRENCIES } from "@/lib/economy-engine";
+import { DirectImageUploadField } from "../DirectImageUploadField";
+import { MultiImageGalleryUploader } from "../MultiImageGalleryUploader";
+import { DraggableScrollArea } from "../DraggableScrollArea";
 
 interface CharacterEditorModalProps {
   workspaceId: string;
@@ -489,8 +492,8 @@ export function CharacterEditorModal({
     "w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-6xl max-h-[94vh] rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full max-w-6xl h-[96vh] sm:h-auto sm:max-h-[94vh] rounded-t-2xl sm:rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] shadow-2xl flex flex-col overflow-hidden">
         {/* Top Bar */}
         <div className="px-4 sm:px-6 py-3 border-b border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-surface)]">
           <div>
@@ -529,23 +532,25 @@ export function CharacterEditorModal({
           </div>
         </div>
 
-        {/* Multi-Group Tab Ribbon */}
+        {/* Multi-Group Tab Ribbon (Drag with Mouse / Swipe / Scrollbar) */}
         {!previewMode && (
-          <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60 flex gap-1.5 overflow-x-auto hide-scrollbar">
-            {EDITOR_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                  tab === t.id
-                    ? "bg-[var(--accent)] text-[#090e1c] font-bold"
-                    : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--accent)] border border-[var(--border-subtle)]"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60">
+            <DraggableScrollArea ariaLabel="Nhóm dữ liệu nhân vật" innerClassName="flex gap-1.5">
+              {EDITOR_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={`shrink-0 min-h-[36px] px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    tab === t.id
+                      ? "bg-[var(--accent)] text-[#090e1c] font-bold"
+                      : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--accent)] border border-[var(--border-subtle)]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </DraggableScrollArea>
           </div>
         )}
 
@@ -599,6 +604,24 @@ export function CharacterEditorModal({
             </div>
           ) : tab === "identity" ? (
             <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50 p-3">
+                <DirectImageUploadField
+                  workspaceId={workspaceId}
+                  label="Ảnh Chân dung Nhân vật (Upload trực tiếp / Kéo thả / Ctrl+V)"
+                  value={charData.portraitUrl || ""}
+                  onChange={(url) => setCharData({ ...charData, portraitUrl: url })}
+                  preset="portrait"
+                  tags="character,portrait"
+                />
+                <DirectImageUploadField
+                  workspaceId={workspaceId}
+                  label="Ảnh Bìa Nhân vật (16:9 Banner)"
+                  value={charData.coverUrl || ""}
+                  onChange={(url) => setCharData({ ...charData, coverUrl: url })}
+                  preset="cover"
+                  tags="character,cover"
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] text-[var(--accent)] font-semibold mb-1">Họ và tên *</label>
@@ -1262,23 +1285,28 @@ export function CharacterEditorModal({
             </div>
           ) : tab === "gallery_sources" ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--accent)]">Thư viện Hình ảnh ({images.length})</span>
-                <button
-                  type="button"
-                  onClick={() => setImages((p) => [...p, { category: "portrait", url: "", caption: "", sourceCredit: "" }])}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Thêm hình ảnh
-                </button>
-              </div>
-              {images.map((img, idx) => (
-                <div key={idx} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/50 p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input placeholder="URL hình ảnh..." value={img.url || ""} onChange={(e) => setImages((p) => p.map((x, i) => (i === idx ? { ...x, url: e.target.value } : x)))} className={inputCls} />
-                  <input placeholder="Chú thích ảnh" value={img.caption || ""} onChange={(e) => setImages((p) => p.map((x, i) => (i === idx ? { ...x, caption: e.target.value } : x)))} className={inputCls} />
-                  <button type="button" onClick={() => setImages((p) => p.filter((_, i) => i !== idx))} className="text-rose-400 justify-self-end p-1 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
-              ))}
+              <MultiImageGalleryUploader
+                workspaceId={workspaceId}
+                label="Thư viện Hình ảnh Nhân vật (Tải nhiều ảnh trực tiếp)"
+                tags="character,gallery"
+                items={images.map((img, idx) => ({
+                  id: img.id || `cimg-${idx}`,
+                  url: img.url || "",
+                  caption: img.caption || "",
+                  source: img.sourceCredit || ""
+                }))}
+                onChange={(next) =>
+                  setImages(
+                    next.map((g) => ({
+                      id: g.id,
+                      category: "portrait",
+                      url: g.url,
+                      caption: g.caption,
+                      sourceCredit: g.source || ""
+                    }))
+                  )
+                }
+              />
 
               <div className="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)]">
                 <span className="text-xs font-semibold text-[var(--accent)]">Nguồn &amp; Tài liệu Tham khảo ({sources.length})</span>

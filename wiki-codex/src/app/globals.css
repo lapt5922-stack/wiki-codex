@@ -509,6 +509,44 @@ body {
   animation: none !important;
 }
 
+/* ============================================================================
+   UNIVERSAL CUSTOM SCROLLBARS (Visible, Draggable & Smooth on Desktop + Mobile)
+   ============================================================================ */
+.codex-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) rgba(255, 255, 255, 0.08);
+  -webkit-overflow-scrolling: touch;
+}
+
+.codex-scrollbar::-webkit-scrollbar {
+  height: 7px;
+  width: 7px;
+}
+
+.codex-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+
+.codex-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.55), rgba(56, 189, 248, 0.55));
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.codex-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.9), rgba(56, 189, 248, 0.85));
+}
+
+/* Focus Reader Mode (Desktop Pro) */
+.codex-focus-reader {
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 1.05rem;
+  line-height: 1.85;
+}
+
 @media print {
   .no-print {
     display: none !important;

@@ -1,4 +1,6 @@
 import { loadState } from "@/db/repository";
+import { queryCharacters } from "@/db/character-repository";
+import { queryKingdoms } from "@/db/kingdom-repository";
 import { matchesVietnameseQuery } from "@/lib/vietnamese";
 import { filterEntriesForRole } from "@/lib/rbac";
 import { getRequestUser, jsonOk } from "@/lib/api-helpers";
@@ -88,5 +90,26 @@ export async function GET(request: Request) {
       sigil: p.sigil
     }));
 
-  return jsonOk({ entries, categories, timelineEvents, atlasPins });
+  const [charRes, kingRes] = await Promise.all([
+    queryCharacters({ workspaceId: wsId, role: user.role, q, page: 1, limit: 6 }).catch(() => ({ items: [] })),
+    queryKingdoms({ workspaceId: wsId, role: user.role, q, page: 1, limit: 6 }).catch(() => ({ items: [] }))
+  ]);
+
+  const characters = charRes.items.map((c) => ({
+    id: c.id,
+    fullName: c.fullName,
+    race: c.race,
+    symbol: c.symbol || "✦",
+    titles: c.titles.slice(0, 2)
+  }));
+
+  const kingdoms = kingRes.items.map((k) => ({
+    id: k.id,
+    officialName: k.officialName,
+    continent: k.continent,
+    governmentType: k.governmentType,
+    capitalName: k.capitalName
+  }));
+
+  return jsonOk({ entries, categories, timelineEvents, atlasPins, characters, kingdoms });
 }

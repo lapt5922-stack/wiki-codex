@@ -147,10 +147,14 @@ const TAB_LABELS: Record<EntryTabKey, string> = {
 };
 
 const CANON_BADGE: Record<CanonStatus, { label: string; cls: string }> = {
-  canon: { label: "✦ Chính sử (Canon)", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/35" },
+  canon: { label: "✦ Canon / Chính thức", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/35" },
+  verified: { label: "✓ Verified / Đã xác minh", cls: "bg-cyan-500/15 text-cyan-300 border-cyan-500/35" },
+  unverified: { label: "⧗ Unverified / Chưa xác minh", cls: "bg-amber-500/15 text-amber-300 border-amber-500/35" },
+  inferred: { label: "⚝ Inferred / Suy luận", cls: "bg-indigo-500/15 text-indigo-300 border-indigo-500/35" },
+  original_lore: { label: "☽ Original Lore / Sáng tạo", cls: "bg-purple-500/15 text-purple-300 border-purple-500/35" },
+  draft: { label: "✎ Draft / Bản nháp", cls: "bg-slate-500/20 text-slate-300 border-slate-500/40" },
   apocrypha: { label: "☽ Truyền thuyết", cls: "bg-purple-500/15 text-purple-300 border-purple-500/35" },
-  hypothesis: { label: "⚝ Giả thuyết học giả", cls: "bg-sky-500/15 text-sky-300 border-sky-500/35" },
-  unverified: { label: "⧗ Đang kiểm chứng", cls: "bg-amber-500/15 text-amber-300 border-amber-500/35" }
+  hypothesis: { label: "⚝ Giả thuyết học giả", cls: "bg-sky-500/15 text-sky-300 border-sky-500/35" }
 };
 
 export function EntryDetailView({

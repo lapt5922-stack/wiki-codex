@@ -9,6 +9,10 @@ import type {
   KingdomWorkflowStatus
 } from "@/types/kingdom-codex";
 import { WORLD_CURRENCIES } from "@/lib/economy-engine";
+import { DirectImageUploadField } from "../DirectImageUploadField";
+import { MultiImageGalleryUploader } from "../MultiImageGalleryUploader";
+import { useDraftAutoSave } from "@/lib/use-draft-autosave";
+import { DraggableScrollArea } from "../DraggableScrollArea";
 
 interface KingdomEditorModalProps {
   dossier: KingdomHydratedDossier;
@@ -35,6 +39,7 @@ export function KingdomEditorModal({
   const [changeNote, setChangeNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const autoDraft = useDraftAutoSave(`kingdom-codex-draft-${dossier.kingdom.id}`, draft, true);
 
   async function handleSave() {
     if (!draft.kingdom.officialName.trim()) {
@@ -58,6 +63,7 @@ export function KingdomEditorModal({
         setError(data.error || "Không thể lưu thay đổi.");
         return;
       }
+      autoDraft.clearDraft();
       onSaved(data.dossier);
     } catch {
       setError("Lỗi kết nối khi lưu hồ sơ quốc gia.");
@@ -70,8 +76,8 @@ export function KingdomEditorModal({
     "w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-5xl max-h-[92vh] rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full max-w-5xl h-[96vh] sm:h-auto sm:max-h-[92vh] rounded-t-2xl sm:rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] shadow-2xl flex flex-col overflow-hidden">
         <div className="px-4 sm:px-6 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-surface)]">
           <h2 className="font-display text-base sm:text-lg font-bold text-[var(--accent)] flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
@@ -80,29 +86,56 @@ export function KingdomEditorModal({
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60 flex gap-1.5 overflow-x-auto hide-scrollbar text-xs">
-          {(
-            [
-              ["identity", "1. Nhận diện & Biểu tượng"],
-              ["geo_gov", "2. Địa lý & Chính quyền"],
-              ["royalty_econ", "3. Hoàng gia (CHAR-ID) & Kinh tế"],
-              ["mil_tech_cul", "4. Quân sự, Công nghệ & Văn hóa"],
-              ["stats_events", "5. 14 Chỉ số & Lịch sử"],
-              ["custom", "6. Trường động"]
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg font-medium cursor-pointer ${
-                tab === id ? "bg-[var(--accent)] text-[#090e1c] font-bold" : "bg-[var(--bg-surface)] text-[var(--text-secondary)]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="px-3 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-xs">
+          <DraggableScrollArea ariaLabel="Nhóm dữ liệu vương quốc" innerClassName="flex gap-1.5">
+            {(
+              [
+                ["identity", "1. Nhận diện & Biểu tượng"],
+                ["geo_gov", "2. Địa lý & Chính quyền"],
+                ["royalty_econ", "3. Hoàng gia (CHAR-ID) & Kinh tế"],
+                ["mil_tech_cul", "4. Quân sự, Công nghệ & Văn hóa"],
+                ["stats_events", "5. 14 Chỉ số & Lịch sử"],
+                ["custom", "6. Trường động"]
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`shrink-0 min-h-[36px] px-3 py-1.5 rounded-lg font-medium cursor-pointer ${
+                  tab === id ? "bg-[var(--accent)] text-[#090e1c] font-bold" : "bg-[var(--bg-surface)] text-[var(--text-secondary)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </DraggableScrollArea>
         </div>
+
+        {autoDraft.hasSavedDraft && (
+          <div className="mx-4 mt-3 rounded-lg bg-amber-500/15 border border-amber-500/40 px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-2">
+            <span>✦ Phát hiện bản nháp tự động lưu trước đó. Bạn có muốn khôi phục?</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const restored = autoDraft.restoreDraft();
+                  if (restored) setDraft(restored);
+                }}
+                className="px-2.5 py-1 rounded bg-amber-400 text-black font-bold cursor-pointer"
+              >
+                Khôi phục
+              </button>
+              <button
+                type="button"
+                onClick={() => autoDraft.clearDraft()}
+                className="px-2 py-1 rounded border border-amber-400/40 cursor-pointer"
+              >
+                Bỏ qua
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && <div className="mx-4 mt-3 rounded-lg bg-rose-500/15 border border-rose-500/40 px-3 py-2 text-xs text-rose-200">{error}</div>}
 
@@ -167,6 +200,75 @@ export function KingdomEditorModal({
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">Tóm tắt quốc gia</label>
                 <textarea rows={3} value={draft.kingdom.summary} onChange={(e) => setDraft({ ...draft, kingdom: { ...draft.kingdom, summary: e.target.value } })} className={inputCls} />
+              </div>
+
+              {/* Direct Image Uploads for Flag, Coat of Arms, Capital, Cover & Gallery */}
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50 p-3 space-y-3">
+                <div className="text-xs font-bold text-[var(--accent)]">✦ Biểu tượng &amp; Hình ảnh Quốc gia (Upload trực tiếp / Kéo thả / Ctrl+V)</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <DirectImageUploadField
+                    workspaceId={draft.kingdom.workspaceId}
+                    label="Quốc kỳ (Flag 3:2)"
+                    value={draft.symbols.flagUrl || ""}
+                    onChange={(url) => setDraft({ ...draft, symbols: { ...draft.symbols, flagUrl: url } })}
+                    preset="flag"
+                    tags="kingdom,flag"
+                    compact
+                  />
+                  <DirectImageUploadField
+                    workspaceId={draft.kingdom.workspaceId}
+                    label="Quốc huy (Coat of Arms 1:1)"
+                    value={draft.symbols.coatOfArmsUrl || ""}
+                    onChange={(url) => setDraft({ ...draft, symbols: { ...draft.symbols, coatOfArmsUrl: url } })}
+                    preset="avatar"
+                    tags="kingdom,emblem"
+                    compact
+                  />
+                  <DirectImageUploadField
+                    workspaceId={draft.kingdom.workspaceId}
+                    label="Ảnh Thủ đô (16:9)"
+                    value={draft.symbols.capitalImageUrl || ""}
+                    onChange={(url) => setDraft({ ...draft, symbols: { ...draft.symbols, capitalImageUrl: url } })}
+                    preset="cover"
+                    tags="kingdom,capital"
+                    compact
+                  />
+                  <DirectImageUploadField
+                    workspaceId={draft.kingdom.workspaceId}
+                    label="Ảnh Bìa Quốc gia (16:9)"
+                    value={draft.symbols.coverImageUrl || ""}
+                    onChange={(url) => setDraft({ ...draft, symbols: { ...draft.symbols, coverImageUrl: url } })}
+                    preset="cover"
+                    tags="kingdom,cover"
+                    compact
+                  />
+                </div>
+                <MultiImageGalleryUploader
+                  workspaceId={draft.kingdom.workspaceId}
+                  label="Thư viện Ảnh Vương quốc (Upload nhiều ảnh)"
+                  tags="kingdom,gallery"
+                  items={draft.images.map((im) => ({
+                    id: im.id,
+                    url: im.url,
+                    caption: im.caption,
+                    source: im.sourceCredit
+                  }))}
+                  onChange={(next) =>
+                    setDraft({
+                      ...draft,
+                      images: next.map((g, idx) => ({
+                        id: g.id,
+                        kingdomId: draft.kingdom.id,
+                        category: "architecture",
+                        url: g.url,
+                        thumbUrl: g.url,
+                        caption: g.caption,
+                        sourceCredit: g.source || "",
+                        sortOrder: idx + 1
+                      }))
+                    })
+                  }
+                />
               </div>
             </div>
           )}

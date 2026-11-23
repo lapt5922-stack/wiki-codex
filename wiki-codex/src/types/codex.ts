@@ -2,7 +2,15 @@ export type UserRole = "admin" | "editor" | "guest";
 
 export type EntryStatus = "draft" | "review" | "published" | "archived";
 export type EntryVisibility = "public" | "private";
-export type CanonStatus = "canon" | "apocrypha" | "hypothesis" | "unverified";
+export type CanonStatus =
+  | "canon"
+  | "verified"
+  | "unverified"
+  | "inferred"
+  | "original_lore"
+  | "draft"
+  | "apocrypha"
+  | "hypothesis";
 
 export type EntryTabKey =
   | "overview"

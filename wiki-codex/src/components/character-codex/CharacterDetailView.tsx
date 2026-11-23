@@ -37,6 +37,9 @@ import type {
 } from "@/types/character-codex";
 import { RELATION_LABELS_VI } from "@/lib/character-id";
 import { useDeviceUI } from "@/lib/device-ui";
+import { DraggableScrollArea } from "../DraggableScrollArea";
+import { toggleCodexBookmark } from "../BookmarksDrawer";
+import { exportShareableCodexCardPng } from "@/lib/codex-card-exporter";
 
 interface CharacterDetailViewProps {
   characterId: string;
@@ -405,6 +408,46 @@ export function CharacterDetailView({
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Xuất JSON</span>
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              exportShareableCodexCardPng({
+                id: c.id,
+                title: c.fullName,
+                subtitle: c.titles.join(" · ") || c.race,
+                badge: rarity.label,
+                summary: c.summary,
+                accentColor: c.accentColor,
+                stats: [
+                  { label: "Cấp độ", value: `Lv.${ab.level}` },
+                  { label: "Cảnh giới", value: ab.realm || "—" },
+                  { label: "Chủng tộc", value: c.race || "—" },
+                  { label: "Quốc tịch", value: c.nationality || "—" }
+                ]
+              })
+            }
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs cursor-pointer"
+            title="Xuất thẻ tóm tắt PNG để chia sẻ"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Thẻ PNG</span>
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              toggleCodexBookmark({
+                id: c.id,
+                kind: "character",
+                title: c.fullName,
+                subtitle: `${c.race} · Lv.${ab.level}`,
+                sigil: c.symbol || "✦"
+              })
+            }
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] text-amber-300 text-xs hover:border-[var(--accent)] cursor-pointer"
+            title="Ghim vào danh sách yêu thích"
+          >
+            ★ Ghim
+          </button>
           {canEdit && (
             <>
               <button
@@ -509,14 +552,14 @@ export function CharacterDetailView({
       {/* Main Content + Sticky Sidebar */}
       <div className={`grid grid-cols-1 ${isMobile ? "" : "lg:grid-cols-12"} gap-5 items-start`}>
         <div className={isMobile ? "space-y-4" : "lg:col-span-8 space-y-4"}>
-          {/* C. 14 Navigation Tabs */}
-          <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-1">
+          {/* C. 14 Navigation Tabs (Drag with Mouse / Swipe / Scrollbar) */}
+          <DraggableScrollArea ariaLabel="Các mục hồ sơ nhân vật" innerClassName="flex gap-1.5 px-1">
             {DETAIL_TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id)}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
+                className={`shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                   activeTab === t.id
                     ? "bg-[var(--accent)] text-[#090e1c] font-bold shadow"
                     : "codex-card text-[var(--text-secondary)] hover:text-[var(--accent)]"
@@ -525,7 +568,7 @@ export function CharacterDetailView({
                 {t.label}
               </button>
             ))}
-          </div>
+          </DraggableScrollArea>
 
           {/* Active Tab Body */}
           <div className="codex-card rounded-2xl p-4 sm:p-5 space-y-4">

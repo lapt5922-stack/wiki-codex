@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Activity,
+  ArrowUp,
   Bookmark,
   BookOpen,
   Calendar,
@@ -16,8 +17,11 @@ import {
   Languages,
   Layers,
   LayoutDashboard,
+  Library,
   Map as MapIcon,
+  Maximize2,
   Menu,
+  Minimize2,
   Network,
   Palette,
   PanelLeftClose,
@@ -29,6 +33,7 @@ import {
   Settings2,
   Shield,
   Sparkles,
+  Star,
   StickyNote,
   Trash2,
   Users,
@@ -97,6 +102,9 @@ import { ReadingBreadcrumbTrail, type TrailItem } from "./EntityVisualWidgets";
 import { MultiNationEconomyComparatorModal } from "./MultiNationEconomyComparatorModal";
 import { CharacterCodexHub } from "./character-codex/CharacterCodexHub";
 import { KingdomCodexHub } from "./kingdom-codex/KingdomCodexHub";
+import { BookmarksDrawer } from "./BookmarksDrawer";
+import { WorldAnalyticsDashboard } from "./WorldAnalyticsDashboard";
+import { CodexModulesHub } from "./CodexModulesHub";
 import {
   AuthModal,
   ImportExportModal,
@@ -106,6 +114,7 @@ import {
 
 type MainSection =
   | "home"
+  | "modules"
   | "database"
   | "characters"
   | "kingdoms"
@@ -524,12 +533,13 @@ export function CodexApp() {
     editorOnly?: boolean;
   }> = [
     { id: "home", label: "Đại Sảnh", icon: LayoutDashboard },
+    { id: "modules", label: "Thư viện 14 Codex", icon: Library },
     { id: "database", label: "Kho Hồ sơ", icon: BookOpen },
     { id: "characters", label: "Character Codex", icon: Users },
     { id: "kingdoms", label: "Kingdom Codex (360)", icon: Crown },
-    { id: "v4studio", label: "Studio Thế Giới V4", icon: Layers },
-    { id: "chronicles", label: "Phòng Đọc Truyện", icon: ScrollText },
-    { id: "omniverse", label: "Power & Công cụ V3", icon: Sparkles },
+    { id: "v4studio", label: "World Codex & Vũ trụ", icon: Layers },
+    { id: "chronicles", label: "Phòng Đọc Biên niên", icon: ScrollText },
+    { id: "omniverse", label: "Hệ thống Năng lực & Ma pháp", icon: Sparkles },
     { id: "conlang", label: "Đa Ngôn Ngữ & Chữ Cái", icon: Languages },
     { id: "graph", label: "Đồ thị & Gia phả", icon: Network },
     { id: "loreboard", label: "Loreboard", icon: StickyNote },
@@ -550,6 +560,15 @@ export function CodexApp() {
   });
   const [atlasSplitEntryId, setAtlasSplitEntryId] = useState<string | null>(null);
   const [atlasSplitMode, setAtlasSplitMode] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [focusReaderMode, setFocusReaderMode] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 360);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const visibleNavItems = navItems.filter((item) => !item.editorOnly || canEdit);
 
@@ -575,6 +594,14 @@ export function CodexApp() {
       if (e.key === "g" || e.key === "G") {
         setSection("atlas");
         setActiveEntryId(null);
+      } else if (e.key === "c" || e.key === "C") {
+        setSection("characters");
+        setActiveEntryId(null);
+      } else if (e.key === "k" || e.key === "K") {
+        setSection("kingdoms");
+        setActiveEntryId(null);
+      } else if (e.key === "f" || e.key === "F") {
+        setFocusReaderMode((v) => !v);
       } else if ((e.key === "j" || e.key === "k") && activeEntryId && entries.length > 1) {
         const idx = entries.findIndex((x) => x.id === activeEntryId);
         if (idx >= 0) {
@@ -766,6 +793,28 @@ export function CodexApp() {
               </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => setBookmarksOpen(true)}
+              title="Hồ sơ Đã Ghim (Bookmarks)"
+              className="p-2 rounded-xl border border-[var(--border-subtle)] text-amber-300 hover:border-[var(--accent)] cursor-pointer"
+            >
+              <Star className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFocusReaderMode((v) => !v)}
+              title="Chế độ Đọc Tập trung (Phím F)"
+              className={`hidden sm:inline-flex p-2 rounded-xl border cursor-pointer ${
+                focusReaderMode
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--accent)]"
+              }`}
+            >
+              {focusReaderMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+
             <button type="button" onClick={() => setAuthModalOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-xs hover:border-[var(--accent)] cursor-pointer">
               <Shield className="w-3.5 h-3.5 text-[var(--accent)]" />
               <span className="hidden sm:inline font-mono uppercase text-[11px]">{user.role}</span>
@@ -778,11 +827,11 @@ export function CodexApp() {
       <div className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-5 py-4 flex gap-5 items-start">
         {/* Desktop / Tablet Sidebar (Hidden in Mobile Studio, Slim Rail on Tablet, Full on Desktop) */}
         <aside
-          className={`${isMobile ? "hidden" : "hidden lg:flex"} flex-col gap-3 sticky top-20 max-h-[calc(100vh-5.5rem)] shrink-0 transition-all duration-200 no-print ${
+          className={`${isMobile || focusReaderMode ? "hidden" : "hidden lg:flex"} flex-col gap-3 sticky top-20 max-h-[calc(100vh-5.5rem)] shrink-0 transition-all duration-200 no-print ${
             sidebarCollapsed || isTablet ? "w-16" : "w-72"
           }`}
         >
-          <nav className="codex-card rounded-2xl p-1.5 space-y-0.5 overflow-y-auto">
+          <nav className="codex-card rounded-2xl p-1.5 space-y-0.5 overflow-y-auto codex-scrollbar">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const active = section === item.id && !activeEntryId;
@@ -925,6 +974,15 @@ export function CodexApp() {
                   setPage(1);
                 }}
               />
+              <WorldAnalyticsDashboard
+                workspaceId={activeWorkspaceId}
+                totalEntries={totalEntries}
+                mediaCount={mediaAssets.length}
+                onNavigate={(sec) => {
+                  setSection(sec as MainSection);
+                  setActiveEntryId(null);
+                }}
+              />
               <GrandHallView
                 workspace={activeWorkspace}
                 entries={entries}
@@ -945,6 +1003,24 @@ export function CodexApp() {
                 }}
               />
             </div>
+          ) : section === "modules" ? (
+            <CodexModulesHub
+              entries={entries}
+              canEdit={canEdit}
+              onOpenEntry={handleOpenEntry}
+              onNavigateSection={(sec) => {
+                setSection(sec as MainSection);
+                setActiveEntryId(null);
+              }}
+              onCreateInModule={(mod) =>
+                setEditorState({
+                  open: true,
+                  entry: null,
+                  initialTitle: `[${mod.idPrefix}] `,
+                  initialContent: mod.starterMarkdown
+                })
+              }
+            />
           ) : section === "database" ? (
             <div className="space-y-4 animate-codex-fade-up">
               <CategorySliderRibbon
@@ -1269,12 +1345,13 @@ export function CodexApp() {
       )}
 
       {/* Mobile-First Bottom Navigation Bar (48px+ touch targets + safe-area — also shown in manual Mobile override) */}
-      <nav className={`${isMobile ? "grid" : "lg:hidden grid"} fixed bottom-0 inset-x-0 z-30 border-t border-[var(--border-strong)] bg-[var(--bg-surface)] backdrop-blur-xl px-2 pt-1.5 pb-safe grid-cols-5 gap-1 no-print`}>
+      <nav className={`${isMobile ? "grid" : "lg:hidden grid"} fixed bottom-0 inset-x-0 z-30 border-t border-[var(--border-strong)] bg-[var(--bg-surface)]/95 backdrop-blur-xl px-2 pt-1.5 pb-safe grid-cols-5 gap-1 no-print`}>
         {(
           [
             ["home", LayoutDashboard, "Đại Sảnh"],
-            ["database", BookOpen, "Hồ sơ"],
-            ["atlas", MapIcon, "Bản đồ 360"]
+            ["characters", Users, "Nhân vật"],
+            ["kingdoms", Crown, "Vương quốc"],
+            ["atlas", MapIcon, "Atlas 360"]
           ] as const
         ).map(([id, Icon, label]) => (
           <button
@@ -1284,7 +1361,7 @@ export function CodexApp() {
               setSection(id);
               setActiveEntryId(null);
             }}
-            className={`flex flex-col items-center justify-center min-h-[44px] rounded-xl text-[10px] ${
+            className={`flex flex-col items-center justify-center min-h-[46px] rounded-xl text-[10px] ${
               section === id && !activeEntryId
                 ? "text-[var(--accent)] bg-[var(--accent-soft)] font-semibold"
                 : "text-[var(--text-muted)]"
@@ -1294,15 +1371,38 @@ export function CodexApp() {
             <span>{label}</span>
           </button>
         ))}
-        <button type="button" onClick={() => setCmdOpen(true)} className="flex flex-col items-center justify-center min-h-[44px] rounded-xl text-[10px] text-[var(--text-muted)]">
-          <Search className="w-4 h-4 mb-0.5 text-[var(--accent)]" />
-          <span>Tìm kiếm</span>
-        </button>
-        <button type="button" onClick={() => setMobileMoreOpen(true)} className="flex flex-col items-center justify-center min-h-[44px] rounded-xl text-[10px] text-[var(--text-muted)]">
+        <button type="button" onClick={() => setMobileMoreOpen(true)} className="flex flex-col items-center justify-center min-h-[46px] rounded-xl text-[10px] text-[var(--text-muted)]">
           <Menu className="w-4 h-4 mb-0.5 text-[var(--accent)]" />
           <span>Thêm</span>
         </button>
       </nav>
+
+      {/* Back to Top Floating Button */}
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Lên đầu trang"
+          className="no-print fixed right-4 bottom-24 lg:bottom-20 z-30 min-w-[44px] min-h-[44px] rounded-full bg-[var(--bg-elevated)]/95 border border-[var(--border-strong)] text-[var(--accent)] shadow-xl flex items-center justify-center hover:scale-105 transition cursor-pointer"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Bookmarks Drawer */}
+      <BookmarksDrawer
+        open={bookmarksOpen}
+        onClose={() => setBookmarksOpen(false)}
+        onOpenEntry={(id) => handleOpenEntry(id)}
+        onOpenCharacters={() => {
+          setSection("characters");
+          setActiveEntryId(null);
+        }}
+        onOpenKingdoms={() => {
+          setSection("kingdoms");
+          setActiveEntryId(null);
+        }}
+      />
 
       {/* Floating Scratchpad */}
       <QuickScratchpad

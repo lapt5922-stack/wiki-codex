@@ -1,7 +1,6 @@
-import fs from "fs";
 import path from "path";
-import crypto from "crypto";
 import { upsertMediaAsset } from "@/db/repository";
+import { saveMediaBlob } from "@/db/media-blob-store";
 import {
   getRequestUser,
   jsonError,
@@ -10,6 +9,15 @@ import {
 } from "@/lib/api-helpers";
 
 const ALLOWED_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+
+const EXT_TO_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml"
+};
 
 export async function POST(request: Request) {
   const user = getRequestUser(request);
@@ -28,7 +36,7 @@ export async function POST(request: Request) {
       return jsonError("Thiếu tệp hình ảnh hoặc không gian đích.");
     }
 
-    const ext = path.extname(file.name).toLowerCase() || ".png";
+    const ext = path.extname(file.name).toLowerCase() || ".webp";
     if (!ALLOWED_EXT.has(ext)) {
       return jsonError("Chỉ hỗ trợ ảnh PNG, JPG, WEBP, GIF, SVG.");
     }
@@ -38,17 +46,18 @@ export async function POST(request: Request) {
       return jsonError("Ảnh vượt quá giới hạn 10MB.");
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const safeName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${ext}`;
-    const fullPath = path.join(uploadDir, safeName);
-    fs.writeFileSync(fullPath, Buffer.from(bytes));
+    const mimeType = file.type || EXT_TO_MIME[ext] || "image/webp";
+    const saved = await saveMediaBlob({
+      workspaceId,
+      fileName: file.name || `upload${ext}`,
+      mimeType,
+      data: Buffer.from(bytes)
+    });
 
     const cdnBase = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL || "").replace(/\/$/, "");
-    const publicUrl = cdnBase ? `${cdnBase}/uploads/${safeName}` : `/uploads/${safeName}`;
+    const publicUrl = cdnBase
+      ? `${cdnBase}/api/media/file/${saved.id}`
+      : `/api/media/file/${saved.id}`;
 
     const asset = await upsertMediaAsset({
       workspaceId,
@@ -63,7 +72,16 @@ export async function POST(request: Request) {
       source: "upload"
     });
 
-    return jsonOk({ asset }, 201);
+    return jsonOk(
+      {
+        asset,
+        url: publicUrl,
+        blobId: saved.id,
+        sizeBytes: saved.sizeBytes,
+        mimeType: saved.mimeType
+      },
+      201
+    );
   } catch (err) {
     return jsonError(`Lỗi tải ảnh: ${(err as Error).message}`, 500);
   }

@@ -27,6 +27,8 @@ import { DynamicPropertiesEditor } from "./DynamicPropertiesPanel";
 import { EntityEmblemSVG } from "./EntityVisualWidgets";
 import { WORLD_CURRENCIES, createDefaultEconomyProfile } from "@/lib/economy-engine";
 import type { EntityEmblemConfig, EntryEconomyProfile } from "@/types/codex";
+import { DirectImageUploadField } from "./DirectImageUploadField";
+import { uploadImageToVault } from "@/lib/client-image-optimizer";
 
 interface EntryEditorModalProps {
   workspaceId: string;
@@ -619,10 +621,12 @@ export function EntryEditorModal({
               onChange={(e) => setCanonStatus(e.target.value as CanonStatus)}
               className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-2 text-xs"
             >
-              <option value="canon">Chính sử (Canon)</option>
-              <option value="apocrypha">Truyền thuyết</option>
-              <option value="hypothesis">Giả thuyết học giả</option>
-              <option value="unverified">Đang kiểm chứng</option>
+              <option value="canon">Canon / Chính thức</option>
+              <option value="verified">Verified / Đã xác minh</option>
+              <option value="unverified">Unverified / Chưa xác minh</option>
+              <option value="inferred">Inferred / Suy luận</option>
+              <option value="original_lore">Original Lore / Sáng tạo</option>
+              <option value="draft">Draft / Bản nháp</option>
             </select>
           </div>
         </div>
@@ -670,47 +674,50 @@ export function EntryEditorModal({
         />
 
         {/* Images & Media Vault Picker */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs text-[var(--text-muted)]">URL Ảnh bìa (Hero)</label>
-              {mediaAssets.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowMediaPicker((v) => !v)}
-                  className="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <ImageIcon className="w-3 h-3" /> Chọn từ Media Vault
-                </button>
-              )}
-            </div>
-            <input
-              type="text"
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <DirectImageUploadField
+              workspaceId={workspaceId}
+              label="Ảnh bìa (Hero — Tải trực tiếp / Kéo thả / Ctrl+V)"
               value={coverImage}
-              onChange={(e) => setCoverImage(e.target.value)}
-              placeholder="https://... hoặc /uploads/..."
-              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+              onChange={(url) => {
+                setCoverImage(url);
+                if (!thumbImage) setThumbImage(url);
+              }}
+              preset="cover"
+              tags="entry,cover"
+              compact
             />
+            {mediaAssets.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowMediaPicker((v) => !v)}
+                className="text-[11px] text-[var(--accent)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <ImageIcon className="w-3 h-3" /> Hoặc chọn từ Media Vault ({mediaAssets.length})
+              </button>
+            )}
           </div>
-          <div>
-            <label className="block text-xs text-[var(--text-muted)] mb-1">URL Ảnh thu nhỏ (Thumb)</label>
-            <input
-              type="text"
+          <div className="space-y-2.5">
+            <DirectImageUploadField
+              workspaceId={workspaceId}
+              label="Ảnh thu nhỏ (Thumb 1:1 — Để trống dùng ảnh bìa)"
               value={thumbImage}
-              onChange={(e) => setThumbImage(e.target.value)}
-              placeholder="Để trống sẽ dùng ảnh bìa"
-              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+              onChange={setThumbImage}
+              preset="avatar"
+              tags="entry,thumb"
+              compact
             />
-          </div>
-          <div>
-            <label className="block text-xs text-[var(--text-muted)] mb-1">Thẻ phân loại (Tags)</label>
-            <input
-              type="text"
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="vương quốc, phương bắc, lịch sử"
-              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
-            />
+            <div>
+              <label className="block text-xs text-[var(--text-muted)] mb-1">Thẻ phân loại (Tags)</label>
+              <input
+                type="text"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="vương quốc, phương bắc, lịch sử"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+              />
+            </div>
           </div>
         </div>
 
@@ -769,6 +776,31 @@ export function EntryEditorModal({
               >
                 + Spoiler
               </button>
+              <label className="px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 cursor-pointer inline-flex items-center gap-1 font-medium">
+                <ImageIcon className="w-3 h-3" /> + Tải &amp; Chèn ảnh
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    try {
+                      const uploaded = await uploadImageToVault({
+                        file: f,
+                        workspaceId,
+                        preset: "free",
+                        title: f.name.replace(/\.[^.]+$/, ""),
+                        tags: "entry,inline"
+                      });
+                      insertSnippet(`\n![${f.name.replace(/\.[^.]+$/, "")}](${uploaded.url})\n`);
+                    } catch (err) {
+                      setError((err as Error).message);
+                    }
+                  }}
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => setSplitPreview((v) => !v)}
