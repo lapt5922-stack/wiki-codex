@@ -46,6 +46,7 @@ interface KingdomDetailViewProps {
   onViewOnAtlas?: (atlasNationId: string) => void;
   onOpenWikiEntry?: (entryId: string) => void;
   onOpenCharacter?: (charId: string) => void;
+  onOpenHeraldry?: (kingdomId: string) => void;
 }
 
 type KTab =
@@ -95,7 +96,8 @@ export function KingdomDetailView({
   onDeleted,
   onViewOnAtlas,
   onOpenWikiEntry,
-  onOpenCharacter
+  onOpenCharacter,
+  onOpenHeraldry
 }: KingdomDetailViewProps) {
   const { isMobile } = useDeviceUI();
   const [dossier, setDossier] = useState<KingdomHydratedDossier | null>(null);
@@ -307,6 +309,16 @@ export function KingdomDetailView({
           >
             <ImageIcon className="w-3.5 h-3.5" /> Thẻ PNG
           </button>
+          {onOpenHeraldry && (
+            <button
+              type="button"
+              onClick={() => onOpenHeraldry(k.id)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[#C6A568]/50 bg-[#C6A568]/15 text-[#E9DFC9] text-xs font-semibold cursor-pointer hover:brightness-110"
+              title="Thiết kế hoặc nâng cấp Quốc huy trong Royal Heraldry Studio"
+            >
+              <Shield className="w-3.5 h-3.5 text-[#C6A568]" /> Xưởng Huy hiệu
+            </button>
+          )}
           <button
             type="button"
             onClick={() =>

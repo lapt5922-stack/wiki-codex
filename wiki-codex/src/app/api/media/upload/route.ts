@@ -1,6 +1,7 @@
 import path from "path";
 import { upsertMediaAsset } from "@/db/repository";
 import { saveMediaBlob } from "@/db/media-blob-store";
+import { sanitizeSvgContent } from "@/lib/heraldry/shapes-and-palettes";
 import {
   getRequestUser,
   jsonError,
@@ -47,11 +48,16 @@ export async function POST(request: Request) {
     }
 
     const mimeType = file.type || EXT_TO_MIME[ext] || "image/webp";
+    const rawBuf = Buffer.from(bytes);
+    const safeData =
+      ext === ".svg" || mimeType.includes("svg")
+        ? Buffer.from(sanitizeSvgContent(rawBuf.toString("utf8")), "utf8")
+        : rawBuf;
     const saved = await saveMediaBlob({
       workspaceId,
       fileName: file.name || `upload${ext}`,
       mimeType,
-      data: Buffer.from(bytes)
+      data: safeData
     });
 
     const cdnBase = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL || "").replace(/\/$/, "");

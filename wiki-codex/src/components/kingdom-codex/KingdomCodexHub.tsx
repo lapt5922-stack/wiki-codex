@@ -34,6 +34,7 @@ interface KingdomCodexHubProps {
   onViewOnAtlas?: (atlasNationId: string) => void;
   onOpenWikiEntry?: (entryId: string) => void;
   onOpenCharacter?: (charId: string) => void;
+  onOpenHeraldry?: (kingdomId: string) => void;
   autoOpenCreateSignal?: number;
 }
 
@@ -43,6 +44,7 @@ export function KingdomCodexHub({
   onViewOnAtlas,
   onOpenWikiEntry,
   onOpenCharacter,
+  onOpenHeraldry,
   autoOpenCreateSignal = 0
 }: KingdomCodexHubProps) {
   const { isMobile, isTablet } = useDeviceUI();
@@ -224,6 +226,7 @@ export function KingdomCodexHub({
           onViewOnAtlas={onViewOnAtlas}
           onOpenWikiEntry={onOpenWikiEntry}
           onOpenCharacter={onOpenCharacter}
+          onOpenHeraldry={onOpenHeraldry}
         />
         {editingDossier && (
           <KingdomEditorModal

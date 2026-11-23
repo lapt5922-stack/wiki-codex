@@ -109,6 +109,7 @@ import { UnifiedCodexWorkspace, type UnifiedCodexTab } from "./UnifiedCodexWorks
 import { UnifiedCreateDossierModal } from "./UnifiedCreateDossierModal";
 import { HistoricalPerspectiveArchiveView } from "./HistoricalPerspectiveArchiveView";
 import { WorldPulseStatsView } from "./WorldPulseStatsView";
+import { RoyalHeraldryStudio } from "./heraldry/RoyalHeraldryStudio";
 import { classifyEntryModule } from "@/lib/codex-modules";
 import {
   AuthModal,
@@ -129,6 +130,7 @@ type MainSection =
   | "graph"
   | "timeline"
   | "archives"
+  | "heraldry"
   | "calendar"
   | "atlas"
   | "loreboard"
@@ -562,6 +564,7 @@ export function CodexApp() {
     { id: "loreboard", label: "Loreboard", icon: StickyNote },
     { id: "timeline", label: "Biên niên sử", icon: Hourglass },
     { id: "archives", label: "Tư liệu & Góc nhìn", icon: Archive },
+    { id: "heraldry", label: "Xưởng Huy hiệu", icon: Shield },
     { id: "calendar", label: "Lịch Thế Giới", icon: Calendar },
     { id: "atlas", label: "Bản đồ Atlas", icon: MapIcon },
     { id: "media", label: "Media Vault", icon: ImageIcon },
@@ -585,6 +588,7 @@ export function CodexApp() {
   const [unifiedCreateOpen, setUnifiedCreateOpen] = useState(false);
   const [charCreateSignal, setCharCreateSignal] = useState(0);
   const [kingCreateSignal, setKingCreateSignal] = useState(0);
+  const [heraldryTargetKingdomId, setHeraldryTargetKingdomId] = useState<string | null>(null);
 
   const openUnifiedCodex = useCallback((tab: UnifiedCodexTab = "all") => {
     setCodexTab(tab);
@@ -1099,6 +1103,11 @@ export function CodexApp() {
                   }}
                   onOpenWikiEntry={(entryId) => handleOpenEntry(entryId)}
                   onOpenCharacter={() => openUnifiedCodex("character")}
+                  onOpenHeraldry={(kid) => {
+                    setHeraldryTargetKingdomId(kid);
+                    setSection("heraldry");
+                    setActiveEntryId(null);
+                  }}
                   autoOpenCreateSignal={kingCreateSignal}
                 />
               )}
@@ -1216,6 +1225,15 @@ export function CodexApp() {
             <TimelineView workspaceId={activeWorkspaceId} entries={entries} canEdit={canEdit} onOpenEntry={handleOpenEntry} />
           ) : section === "archives" ? (
             <HistoricalPerspectiveArchiveView workspaceId={activeWorkspaceId} canEdit={canEdit} />
+          ) : section === "heraldry" ? (
+            <RoyalHeraldryStudio
+              workspaceId={activeWorkspaceId}
+              canEdit={canEdit}
+              initialKingdomId={heraldryTargetKingdomId}
+              onAppliedToKingdom={() => {
+                void refreshAll();
+              }}
+            />
           ) : section === "calendar" ? (
             <CalendarView workspaceId={activeWorkspaceId} calendars={calendars} timelineEvents={timelineEvents} canEdit={canEdit} onRefresh={loadWorkspaceMeta} />
           ) : section === "atlas" ? (
