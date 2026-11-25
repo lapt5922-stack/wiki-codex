@@ -12,6 +12,7 @@ import {
 } from "@/db/repository";
 import { computeBacklinks, findUnlinkedMentions } from "@/lib/wikilinks";
 import {
+  ConcurrentEditError,
   getRequestUser,
   jsonError,
   jsonOk,
@@ -171,9 +172,16 @@ export async function PATCH(
     return jsonOk({ note }, 201);
   }
 
-  const entry = await updateEntry(id, body, user.name);
-  if (!entry) return jsonError("Không tìm thấy hồ sơ.", 404);
-  return jsonOk({ entry });
+  try {
+    const entry = await updateEntry(id, body, user.name);
+    if (!entry) return jsonError("Không tìm thấy hồ sơ.", 404);
+    return jsonOk({ entry });
+  } catch (err) {
+    if (err instanceof ConcurrentEditError || (err as Error)?.name === "ConcurrentEditError") {
+      return jsonError((err as Error).message, 409);
+    }
+    return jsonError((err as Error).message || "Không thể cập nhật hồ sơ.", 400);
+  }
 }
 
 export async function DELETE(

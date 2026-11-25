@@ -4,6 +4,7 @@ import {
   updateKingdomDossier
 } from "@/db/kingdom-repository";
 import {
+  ConcurrentEditError,
   getRequestUser,
   jsonError,
   jsonOk,
@@ -38,6 +39,9 @@ export async function PATCH(
     if (!updated) return jsonError("Không tìm thấy hồ sơ quốc gia.", 404);
     return jsonOk({ dossier: updated });
   } catch (err) {
+    if (err instanceof ConcurrentEditError || (err as Error)?.name === "ConcurrentEditError") {
+      return jsonError((err as Error).message, 409);
+    }
     return jsonError((err as Error).message || "Không thể cập nhật hồ sơ quốc gia.", 400);
   }
 }

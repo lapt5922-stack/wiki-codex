@@ -69,53 +69,32 @@ import type {
   WorldUnit,
   Workspace
 } from "@/types/codex";
+import dynamic from "next/dynamic";
 import { DEFAULT_GUEST_USER } from "@/lib/auth";
 import { SidebarTree } from "./SidebarTree";
 import { GrandHallView } from "./GrandHallView";
 import { DatabaseView } from "./DatabaseView";
-import { EntryDetailView } from "./EntryDetailView";
-import { EntryEditorModal } from "./EntryEditorModal";
-import { EntryTypeManagerModal } from "./EntryTypeManagerModal";
-import { KnowledgeGraphView } from "./KnowledgeGraphView";
-import { TimelineView } from "./TimelineView";
-import { AtlasView } from "./AtlasView";
 import { AlmanacLoreTrailsPanel } from "./AlmanacLoreTrailsPanel";
 import { CategorySliderRibbon } from "./CategorySliderRibbon";
-import { ConlangStudioView } from "./ConlangStudioView";
-import { LoreboardView } from "./LoreboardView";
-import { CalendarView } from "./CalendarView";
-import { MediaVaultView } from "./MediaVaultView";
-import { WikiHealthView } from "./WikiHealthView";
-import { PublishCenterModal } from "./PublishCenterModal";
 import { CommandPalette } from "./CommandPalette";
-import {
-  CodexBookModeModal,
-  MultiMatrixModal,
-  QuickScratchpad,
-  ShortcutsModal,
-  V2KnowledgeHubView
-} from "./V2HubViews";
-import {
-  ShowcaseDeckModal,
-  V3OmniverseStudioView
-} from "./V3OmniverseStudioView";
-import { V4WorldStudioView } from "./V4WorldStudioView";
-import { ChronicleReaderView } from "./ChronicleReaderView";
-import { BookPublisherModal } from "./BookPublisherModal";
-import { BatchCsvImportModal } from "./BatchCsvImportModal";
+import { QuickScratchpad, ShortcutsModal } from "./V2HubViews";
 import { DeviceUISwitcher, useDeviceUI } from "@/lib/device-ui";
 import { useReadingPreferences } from "@/lib/reading-preferences";
 import { ReadingBreadcrumbTrail, type TrailItem } from "./EntityVisualWidgets";
-import { MultiNationEconomyComparatorModal } from "./MultiNationEconomyComparatorModal";
-import { CharacterCodexHub } from "./character-codex/CharacterCodexHub";
-import { KingdomCodexHub } from "./kingdom-codex/KingdomCodexHub";
 import { BookmarksDrawer } from "./BookmarksDrawer";
 import { UnifiedCodexWorkspace, type UnifiedCodexTab } from "./UnifiedCodexWorkspace";
 import { UnifiedCreateDossierModal } from "./UnifiedCreateDossierModal";
-import { HistoricalPerspectiveArchiveView } from "./HistoricalPerspectiveArchiveView";
 import { WorldPulseStatsView } from "./WorldPulseStatsView";
-import { RoyalHeraldryStudio } from "./heraldry/RoyalHeraldryStudio";
 import { classifyEntryModule } from "@/lib/codex-modules";
+import {
+  CODEX_THEMES,
+  SECTION_TITLES,
+  type MainSection
+} from "@/lib/navigation-config";
+import {
+  ImperialViewSkeleton,
+  MobileBottomNavDock
+} from "./ui/ImperialPrimitives";
 import {
   AuthModal,
   ImportExportModal,
@@ -123,38 +102,117 @@ import {
   WorkspaceManagerModal
 } from "./UtilityModals";
 
-type MainSection =
-  | "home"
-  | "modules"
-  | "database"
-  | "characters"
-  | "kingdoms"
-  | "omniverse"
-  | "v4studio"
-  | "chronicles"
-  | "graph"
-  | "timeline"
-  | "archives"
-  | "heraldry"
-  | "calendar"
-  | "atlas"
-  | "loreboard"
-  | "conlang"
-  | "media"
-  | "collections"
-  | "health"
-  | "trash";
+// V9.0 Code-Split Heavy Views & Modals (Dramatically reduces Initial First Load JS)
+const EntryDetailView = dynamic(
+  () => import("./EntryDetailView").then((m) => m.EntryDetailView),
+  { loading: () => <ImperialViewSkeleton label="Đang mở hồ sơ chi tiết..." /> }
+);
+const EntryEditorModal = dynamic(
+  () => import("./EntryEditorModal").then((m) => m.EntryEditorModal),
+  { loading: () => null }
+);
+const EntryTypeManagerModal = dynamic(
+  () => import("./EntryTypeManagerModal").then((m) => m.EntryTypeManagerModal),
+  { loading: () => null }
+);
+const KnowledgeGraphView = dynamic(
+  () => import("./KnowledgeGraphView").then((m) => m.KnowledgeGraphView),
+  { loading: () => <ImperialViewSkeleton label="Đang dựng Đồ thị Tri thức Pro..." /> }
+);
+const TimelineView = dynamic(
+  () => import("./TimelineView").then((m) => m.TimelineView),
+  { loading: () => <ImperialViewSkeleton label="Đang nạp Biên niên sử..." /> }
+);
+const AtlasView = dynamic(
+  () => import("./AtlasView").then((m) => m.AtlasView),
+  { loading: () => <ImperialViewSkeleton label="Đang khởi tạo Đại Bản Đồ 360..." /> }
+);
+const ConlangStudioView = dynamic(
+  () => import("./ConlangStudioView").then((m) => m.ConlangStudioView),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Xưởng Cổ ngữ..." /> }
+);
+const LoreboardView = dynamic(
+  () => import("./LoreboardView").then((m) => m.LoreboardView),
+  { loading: () => <ImperialViewSkeleton label="Đang tải Bảng ý tưởng Loreboard..." /> }
+);
+const CalendarView = dynamic(
+  () => import("./CalendarView").then((m) => m.CalendarView),
+  { loading: () => <ImperialViewSkeleton label="Đang tính chu kỳ Lịch Đa Trăng..." /> }
+);
+const MediaVaultView = dynamic(
+  () => import("./MediaVaultView").then((m) => m.MediaVaultView),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Kho lưu trữ Media Vault..." /> }
+);
+const WikiHealthView = dynamic(
+  () => import("./WikiHealthView").then((m) => m.WikiHealthView),
+  { loading: () => <ImperialViewSkeleton label="Đang chạy Kiểm toán Sức khỏe Wiki..." /> }
+);
+const PublishCenterModal = dynamic(
+  () => import("./PublishCenterModal").then((m) => m.PublishCenterModal),
+  { loading: () => null }
+);
+const V2KnowledgeHubView = dynamic(
+  () => import("./V2HubViews").then((m) => m.V2KnowledgeHubView),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Tuyển tập & Từ điển..." /> }
+);
+const CodexBookModeModal = dynamic(
+  () => import("./V2HubViews").then((m) => m.CodexBookModeModal),
+  { loading: () => null }
+);
+const MultiMatrixModal = dynamic(
+  () => import("./V2HubViews").then((m) => m.MultiMatrixModal),
+  { loading: () => null }
+);
+const V3OmniverseStudioView = dynamic(
+  () => import("./V3OmniverseStudioView").then((m) => m.V3OmniverseStudioView),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Omniverse Studio..." /> }
+);
+const ShowcaseDeckModal = dynamic(
+  () => import("./V3OmniverseStudioView").then((m) => m.ShowcaseDeckModal),
+  { loading: () => null }
+);
+const V4WorldStudioView = dynamic(
+  () => import("./V4WorldStudioView").then((m) => m.V4WorldStudioView),
+  { loading: () => <ImperialViewSkeleton label="Đang dựng Quả Địa Cầu 3D & World Studio..." /> }
+);
+const ChronicleReaderView = dynamic(
+  () => import("./ChronicleReaderView").then((m) => m.ChronicleReaderView),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Biên niên sử chương hồi..." /> }
+);
+const BookPublisherModal = dynamic(
+  () => import("./BookPublisherModal").then((m) => m.BookPublisherModal),
+  { loading: () => null }
+);
+const BatchCsvImportModal = dynamic(
+  () => import("./BatchCsvImportModal").then((m) => m.BatchCsvImportModal),
+  { loading: () => null }
+);
+const MultiNationEconomyComparatorModal = dynamic(
+  () => import("./MultiNationEconomyComparatorModal").then((m) => m.MultiNationEconomyComparatorModal),
+  { loading: () => null }
+);
+const CharacterCodexHub = dynamic(
+  () => import("./character-codex/CharacterCodexHub").then((m) => m.CharacterCodexHub),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Character Codex (17 nhóm)..." /> }
+);
+const KingdomCodexHub = dynamic(
+  () => import("./kingdom-codex/KingdomCodexHub").then((m) => m.KingdomCodexHub),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Kingdom Codex (360 quốc gia)..." /> }
+);
+const HistoricalPerspectiveArchiveView = dynamic(
+  () => import("./HistoricalPerspectiveArchiveView").then((m) => m.HistoricalPerspectiveArchiveView),
+  { loading: () => <ImperialViewSkeleton label="Đang tải Văn khố Góc nhìn Lịch sử..." /> }
+);
+const RoyalHeraldryStudio = dynamic(
+  () => import("./heraldry/RoyalHeraldryStudio").then((m) => m.RoyalHeraldryStudio),
+  { loading: () => <ImperialViewSkeleton label="Đang mở Xưởng Huy hiệu & Quốc kỳ Hoàng gia..." /> }
+);
+const SystemBackupCenterModal = dynamic(
+  () => import("./ui/SystemBackupCenterModal").then((m) => m.SystemBackupCenterModal),
+  { loading: () => null }
+);
 
-const THEMES: Array<{ id: FantasyThemeId; label: string; dot: string }> = [
-  { id: "astral-grimoire", label: "Tinh Hà Cổ Thư", dot: "#D4AF37" },
-  { id: "velvet-eclipse", label: "Huyết Nguyệt Nhung", dot: "#C084FC" },
-  { id: "imperial-amber", label: "Hoàng Hôn Cổ Đô", dot: "#F59E0B" },
-  { id: "sylvan-emerald", label: "Rừng Ngọc Cổ Đại", dot: "#34D399" },
-  { id: "gilded-parchment", label: "Giấy Da Hoàng Kim", dot: "#9A6B20" },
-  { id: "celestial-ivory", label: "Thiên Cung Bạch Ngọc", dot: "#2563EB" },
-  { id: "astral-scifi", label: "Tinh Vân Sci-Fi", dot: "#38BDF8" },
-  { id: "jade-ink", label: "Mực Tàu Ngọc Bích", dot: "#2DD4BF" }
-];
+const THEMES = CODEX_THEMES;
 
 interface OpenEntryTab {
   id: string;
@@ -235,6 +293,7 @@ export function CodexApp() {
   const [bookPublisherOpen, setBookPublisherOpen] = useState(false);
   const [batchCsvOpen, setBatchCsvOpen] = useState(false);
   const [importExportOpen, setImportExportOpen] = useState(false);
+  const [backupModalOpen, setBackupModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [matrixIds, setMatrixIds] = useState<string[] | null>(null);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -767,8 +826,8 @@ export function CodexApp() {
           </button>
         </div>
       )}
-      {/* Top Arcane Bar */}
-      <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] backdrop-blur-xl no-print">
+      {/* Top V9.0 Glass Command Header */}
+      <header className="sticky top-0 z-30 v9-glass-header no-print">
         <div className="max-w-[1720px] mx-auto px-3 sm:px-5 h-14 sm:h-15 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -802,7 +861,7 @@ export function CodexApp() {
                   setOpenTabs([]);
                   setPage(1);
                 }}
-                className="font-display font-bold text-sm sm:text-base bg-transparent text-[var(--text-primary)] focus:outline-none truncate max-w-[155px] sm:max-w-[270px] cursor-pointer"
+                className="font-display font-bold text-sm sm:text-base bg-transparent text-[var(--text-primary)] focus:outline-none truncate max-w-[145px] sm:max-w-[230px] cursor-pointer"
               >
                 {workspaces.map((w) => (
                   <option key={w.id} value={w.id} className="bg-[#090e1c] text-white">
@@ -815,18 +874,25 @@ export function CodexApp() {
                   <Settings2 className="w-3.5 h-3.5" />
                 </button>
               )}
+              <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-[11px] text-[var(--text-muted)]">
+                <span>{SECTION_TITLES[section]?.group || "Bách khoa"}</span>
+                <span>/</span>
+                <strong className="text-[var(--accent)] font-medium">
+                  {activeEntryId ? "Hồ sơ Chi tiết" : SECTION_TITLES[section]?.title || section}
+                </strong>
+              </span>
             </div>
           </div>
 
-          {/* Center Ctrl+K */}
+          {/* Center Ctrl+K Omni-Search Pill */}
           <button
             type="button"
             onClick={() => setCmdOpen(true)}
-            className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/70 text-xs text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--text-primary)] transition w-64 xl:w-80 cursor-pointer"
+            className="v9-sheen-btn hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/80 text-xs text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--text-primary)] transition w-64 xl:w-80 cursor-pointer"
           >
             <Search className="w-3.5 h-3.5 text-[var(--accent)]" />
-            <span className="flex-1 text-left">Tìm toàn cục không dấu...</span>
-            <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/10">Ctrl K</kbd>
+            <span className="flex-1 text-left">Omni-Search không dấu...</span>
+            <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[var(--accent)]">Ctrl K</kbd>
           </button>
 
           {/* Right Controls — Clean Primary Actions + More Tools Dropdown */}
@@ -846,7 +912,7 @@ export function CodexApp() {
                 type="button"
                 onClick={() => setUnifiedCreateOpen(true)}
                 title="Tạo hồ sơ mới trong 14 phân hệ Codex"
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs hover:brightness-110 cursor-pointer shrink-0 shadow-sm"
+                className="v9-sheen-btn inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[#090e1c] font-bold text-xs hover:brightness-110 cursor-pointer shrink-0 shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Tạo Hồ sơ</span>
@@ -1005,6 +1071,15 @@ export function CodexApp() {
                       >
                         <Keyboard className="w-3.5 h-3.5 text-[var(--accent)]" /> Phím tắt (?)
                       </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => { setMoreToolsOpen(false); setBackupModalOpen(true); }}
+                          className="col-span-2 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border border-emerald-500/40 bg-emerald-500/12 text-emerald-200 hover:bg-emerald-500/20 font-semibold cursor-pointer"
+                        >
+                          <Shield className="w-3.5 h-3.5" /> Sao lưu &amp; Khôi phục Thảm họa (SHA-256)
+                        </button>
+                      )}
                     </div>
 
                     {/* Device Switcher & Theme Picker */}
@@ -1146,7 +1221,7 @@ export function CodexApp() {
                   </div>
                 )}
                 <div className="flex items-center justify-between font-mono text-[10px] text-[var(--text-muted)]">
-                  <span>{storageBackend === "postgresql" ? "PostgreSQL" : "Local JSON"} · V2.0</span>
+                  <span>{storageBackend === "postgresql" ? "PostgreSQL" : "Local JSON"} · V9.0</span>
                   <span className="text-emerald-400">● 60fps</span>
                 </div>
               </div>
@@ -1217,7 +1292,7 @@ export function CodexApp() {
               />
             </div>
           ) : section === "home" && activeWorkspace ? (
-            <div className="space-y-6 animate-codex-fade-up">
+            <div className="space-y-6 animate-v9-page-enter">
               <GrandHallView
                 workspace={activeWorkspace}
                 entries={entries}
@@ -1227,8 +1302,10 @@ export function CodexApp() {
                 collections={collections}
                 activities={activityLog}
                 recentIds={recentIds}
+                bookmarkedIds={bookmarks}
                 onOpenEntry={handleOpenEntry}
                 onOpenSearch={() => setCmdOpen(true)}
+                onOpenRandom={handleRandomDiscovery}
                 onNavigate={(sec) => {
                   if (sec === "characters") openUnifiedCodex("character");
                   else if (sec === "kingdoms") openUnifiedCodex("kingdom");
@@ -1587,9 +1664,9 @@ export function CodexApp() {
       {/* Mobile Full-Feature Bottom Sheet */}
       {mobileMoreOpen && (
         <div className="fixed inset-0 z-50 lg:hidden bg-black/70 backdrop-blur-sm flex items-end" onClick={() => setMobileMoreOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full rounded-t-3xl border-t border-[var(--border-strong)] bg-[var(--bg-elevated)] p-5 pb-8 space-y-4 max-h-[80vh] overflow-y-auto">
+          <div onClick={(e) => e.stopPropagation()} className="w-full rounded-t-3xl border-t border-[var(--border-strong)] bg-[var(--bg-elevated)] p-5 pb-8 space-y-4 max-h-[82vh] overflow-y-auto animate-codex-sheet-up">
             <div className="flex items-center justify-between">
-              <span className="font-display font-semibold text-[var(--accent)]">✦ Tất cả Phân hệ Aethel Codex V2.0</span>
+              <span className="font-display font-semibold text-[var(--accent)]">✦ Tất cả Phân hệ Aethel Codex V9.0</span>
               <button type="button" onClick={() => setMobileMoreOpen(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-3 gap-2.5">
@@ -1604,7 +1681,7 @@ export function CodexApp() {
                       setActiveEntryId(null);
                       setMobileMoreOpen(false);
                     }}
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 text-[11px] min-h-[72px] ${
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 text-[11px] min-h-[72px] transition ${
                       section === item.id
                         ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-semibold"
                         : "border-[var(--border-subtle)] bg-[var(--bg-base)]/60 text-[var(--text-secondary)]"
@@ -1620,38 +1697,21 @@ export function CodexApp() {
         </div>
       )}
 
-      {/* Mobile-First Bottom Navigation Bar (48px+ touch targets + safe-area — also shown in manual Mobile override) */}
-      <nav className={`${isMobile ? "grid" : "lg:hidden grid"} fixed bottom-0 inset-x-0 z-30 border-t border-[var(--border-strong)] bg-[var(--bg-surface)]/95 backdrop-blur-xl px-2 pt-1.5 pb-safe grid-cols-5 gap-1 no-print`}>
-        {(
-          [
-            ["home", LayoutDashboard, "Đại Sảnh"],
-            ["characters", Users, "Nhân vật"],
-            ["kingdoms", Crown, "Vương quốc"],
-            ["atlas", MapIcon, "Atlas 360"]
-          ] as const
-        ).map(([id, Icon, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => {
-              setSection(id);
-              setActiveEntryId(null);
-            }}
-            className={`flex flex-col items-center justify-center min-h-[46px] rounded-xl text-[10px] ${
-              section === id && !activeEntryId
-                ? "text-[var(--accent)] bg-[var(--accent-soft)] font-semibold"
-                : "text-[var(--text-muted)]"
-            }`}
-          >
-            <Icon className="w-4 h-4 mb-0.5" />
-            <span>{label}</span>
-          </button>
-        ))}
-        <button type="button" onClick={() => setMobileMoreOpen(true)} className="flex flex-col items-center justify-center min-h-[46px] rounded-xl text-[10px] text-[var(--text-muted)]">
-          <Menu className="w-4 h-4 mb-0.5 text-[var(--accent)]" />
-          <span>Thêm</span>
-        </button>
-      </nav>
+      {/* V9.0 Adaptive Mobile Bottom Navigation Dock */}
+      <MobileBottomNavDock
+        activeSection={section}
+        hasActiveEntry={Boolean(activeEntryId)}
+        onNavigate={(sec) => {
+          if (sec === "characters") openUnifiedCodex("character");
+          else if (sec === "kingdoms") openUnifiedCodex("kingdom");
+          else {
+            setSection(sec);
+            setActiveEntryId(null);
+          }
+        }}
+        onOpenSearch={() => setCmdOpen(true)}
+        onOpenMenu={() => setMobileMoreOpen(true)}
+      />
 
       {/* Back to Top Floating Button */}
       {showBackToTop && (
@@ -1806,6 +1866,13 @@ export function CodexApp() {
 
       {importExportOpen && (
         <ImportExportModal workspaceId={activeWorkspaceId} canEdit={canEdit} onClose={() => setImportExportOpen(false)} onImported={refreshAll} />
+      )}
+
+      {backupModalOpen && isAdmin && (
+        <SystemBackupCenterModal
+          onClose={() => setBackupModalOpen(false)}
+          onRestored={refreshAll}
+        />
       )}
 
       {authModalOpen && (

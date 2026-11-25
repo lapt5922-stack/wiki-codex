@@ -197,7 +197,7 @@ export async function loadUniversalRelationsStore(): Promise<UniversalRelationsS
   return cachedStore;
 }
 
-async function saveUniversalRelationsStore(store: UniversalRelationsStore) {
+export async function saveUniversalRelationsStore(store: UniversalRelationsStore) {
   cachedStore = store;
   if (isPostgresConfigured()) {
     try {

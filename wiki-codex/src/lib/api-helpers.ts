@@ -38,3 +38,14 @@ export function requirePublisher(user: SessionUser): NextResponse | null {
   }
   return null;
 }
+
+export class ConcurrentEditError extends Error {
+  readonly currentUpdatedAt: string;
+  constructor(currentUpdatedAt: string, entityLabel = "hồ sơ") {
+    super(
+      `Xung đột chỉnh sửa đồng thời: ${entityLabel} đã được cập nhật ở một phiên khác (${currentUpdatedAt}). Vui lòng tải lại trước khi lưu.`
+    );
+    this.name = "ConcurrentEditError";
+    this.currentUpdatedAt = currentUpdatedAt;
+  }
+}

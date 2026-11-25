@@ -169,7 +169,7 @@ export async function loadHeraldryStore(): Promise<HeraldryStore> {
   return cached;
 }
 
-async function saveHeraldryStore(store: HeraldryStore) {
+export async function saveHeraldryStore(store: HeraldryStore) {
   cached = store;
   if (isPostgresConfigured()) {
     try {

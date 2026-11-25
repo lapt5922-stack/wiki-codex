@@ -57,3 +57,32 @@ export function buildExcerpt(markdown: string, maxLength = 160): string {
   if (plain.length <= maxLength) return plain;
   return plain.slice(0, maxLength - 1).trimEnd() + "…";
 }
+
+export function scoreSearchMatch(
+  query: string,
+  fields: {
+    id?: string;
+    primaryTitle: string;
+    aliases?: string[];
+    subtitleOrMeta?: string;
+    bodyText?: string;
+  }
+): number {
+  const q = normalizeVietnamese(query);
+  if (!q) return 10;
+
+  const idNorm = normalizeVietnamese(fields.id || "");
+  const titleNorm = normalizeVietnamese(fields.primaryTitle || "");
+  const aliasNorms = (fields.aliases || []).map((a) => normalizeVietnamese(a));
+  const subNorm = normalizeVietnamese(fields.subtitleOrMeta || "");
+  const bodyNorm = normalizeVietnamese(fields.bodyText || "");
+
+  if (idNorm === q || titleNorm === q) return 100;
+  if (titleNorm.startsWith(q) || idNorm.startsWith(q)) return 85;
+  if (aliasNorms.some((a) => a === q || a.startsWith(q))) return 72;
+  if (titleNorm.includes(q)) return 64;
+  if (aliasNorms.some((a) => a.includes(q))) return 55;
+  if (subNorm.includes(q)) return 45;
+  if (bodyNorm.includes(q)) return 25;
+  return 15;
+}

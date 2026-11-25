@@ -198,7 +198,7 @@ export async function loadArchivesStore(): Promise<ArchivesStore> {
   return cached;
 }
 
-async function saveArchivesStore(store: ArchivesStore) {
+export async function saveArchivesStore(store: ArchivesStore) {
   cached = store;
   if (isPostgresConfigured()) {
     try {

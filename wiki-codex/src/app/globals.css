@@ -16,28 +16,40 @@
 
 :root,
 [data-theme="astral-grimoire"] {
-  --bg-base: #101522;
-  --bg-obsidian: #111318;
-  --bg-surface: rgba(23, 31, 46, 0.92);
-  --bg-elevated: rgba(29, 38, 54, 0.97);
-  --bg-card: rgba(25, 34, 50, 0.88);
+  --bg-base: #0b101b;
+  --bg-obsidian: #080c15;
+  --bg-surface: rgba(18, 25, 40, 0.92);
+  --bg-elevated: rgba(24, 33, 52, 0.97);
+  --bg-card: rgba(20, 29, 46, 0.88);
   --border-subtle: rgba(174, 183, 196, 0.16);
-  --border-strong: rgba(198, 165, 104, 0.44);
-  --text-primary: #E9DFC9;
-  --text-secondary: #C8D0DC;
-  --text-muted: #AEB7C4;
-  --accent: #C6A568;
-  --accent-soft: rgba(198, 165, 104, 0.14);
-  --accent-2: #657D91;
+  --border-strong: rgba(205, 170, 106, 0.48);
+  --text-primary: #EFE6D5;
+  --text-secondary: #CBD4E1;
+  --text-muted: #9AA6B8;
+  --accent: #CDAA6A;
+  --accent-soft: rgba(205, 170, 106, 0.15);
+  --accent-2: #6488A8;
   --royal-burgundy: #6D3D49;
-  --royal-slate: #1D2636;
-  --glow-1: rgba(198, 165, 104, 0.11);
-  --glow-2: rgba(109, 61, 73, 0.14);
+  --royal-slate: #1A2334;
+  --glow-1: rgba(205, 170, 106, 0.12);
+  --glow-2: rgba(100, 136, 168, 0.13);
   --danger: #e06c75;
   --success: #52b788;
+  /* V9.0 Centralized Design System Tokens */
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.625rem;
+  --shadow-card: 0 14px 36px -16px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-elevated: 0 24px 56px -20px rgba(0, 0, 0, 0.78), 0 0 0 1px var(--border-subtle);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 380ms;
   /* Unified Vietnamese Typography Scale */
   --codex-body-size: 0.9375rem;
-  --codex-line-height: 1.7;
+  --codex-line-height: 1.72;
 }
 
 /* User Reading Preferences (per-browser, non-intrusive) */
@@ -620,9 +632,152 @@ body {
   background: linear-gradient(90deg, rgba(198, 165, 104, 0.65), rgba(101, 125, 145, 0.25), transparent);
 }
 
+/* ============================================================================
+   V9.0 IMPERIAL ASTRAL SANCTUM — UIVERSE MICRO-INTERACTIONS & MOTION TOKENS
+   ============================================================================ */
+
+@keyframes v9PageEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes v9SkeletonShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-v9-page-enter {
+  animation: v9PageEnter var(--dur-base, 240ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+/* Uiverse-inspired Gilded Sheen Action Button */
+.v9-sheen-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform var(--dur-fast, 150ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+    box-shadow var(--dur-base, 240ms) ease,
+    border-color var(--dur-base, 240ms) ease,
+    filter var(--dur-fast, 150ms) ease;
+}
+
+.v9-sheen-btn::after {
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% -65%;
+  width: 48%;
+  transform: skewX(-22deg) translateX(0);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.28),
+    transparent
+  );
+  pointer-events: none;
+  transition: transform 520ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.v9-sheen-btn:hover::after {
+  transform: skewX(-22deg) translateX(390%);
+}
+
+.v9-sheen-btn:active {
+  transform: scale(0.975);
+}
+
+/* V9.0 Luminous Bento Card with subtle inner crown rim */
+.v9-bento-card {
+  position: relative;
+  background: linear-gradient(160deg, var(--bg-elevated) 0%, var(--bg-card) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 1.25rem);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform var(--dur-base, 240ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+    border-color var(--dur-base, 240ms) ease,
+    box-shadow var(--dur-base, 240ms) ease;
+}
+
+.v9-bento-card:hover {
+  border-color: var(--border-strong);
+  box-shadow:
+    0 18px 40px -16px rgba(0, 0, 0, 0.65),
+    0 0 28px -8px var(--accent-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.v9-bento-interactive:hover {
+  transform: translate3d(0, -2px, 0);
+}
+
+/* V9.0 Glass Command Topbar & Dual-Rail Sidebar */
+.v9-glass-header {
+  background: color-mix(in srgb, var(--bg-obsidian, var(--bg-base)) 86%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.v9-sidebar-shell {
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-base) 100%);
+  border-right: 1px solid var(--border-subtle);
+}
+
+/* V9.0 Skeleton Shimmer (GPU transform only) */
+.v9-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  border-radius: var(--radius-md, 0.875rem);
+}
+
+.v9-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 16%, transparent),
+    transparent
+  );
+  animation: v9SkeletonShimmer 1.5s infinite;
+}
+
+/* V9.0 Adaptive Modal / Mobile Bottom-Sheet */
+@media (max-width: 767px) {
+  .v9-adaptive-modal-backdrop {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .v9-adaptive-modal-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92dvh !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .imperial-card-hover,
   .codex-card-lift,
+  .v9-bento-interactive,
+  .v9-sheen-btn,
+  .v9-sheen-btn::after,
+  .v9-skeleton::after,
+  .animate-v9-page-enter,
   .animate-codex-fade-up,
   .animate-codex-scale-in,
   .animate-codex-sheet-up {
@@ -630,6 +785,16 @@ body {
     transition: none !important;
     transform: none !important;
   }
+}
+
+[data-perf="lite"] .v9-sheen-btn::after,
+[data-perf="lite"] .v9-skeleton::after,
+[data-perf="lite"] .animate-v9-page-enter {
+  animation: none !important;
+  display: none !important;
+}
+[data-perf="lite"] .v9-glass-header {
+  backdrop-filter: none !important;
 }
 
 @media print {

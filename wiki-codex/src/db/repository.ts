@@ -447,9 +447,26 @@ export async function saveState(state: CodexDatabaseState): Promise<void> {
   if (!fs.existsSync(LOCAL_DATA_DIR)) {
     fs.mkdirSync(LOCAL_DATA_DIR, { recursive: true });
   }
-  const tmpFile = `${LOCAL_DATA_FILE}.tmp`;
-  fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2), "utf8");
-  fs.renameSync(tmpFile, LOCAL_DATA_FILE);
+  const payload = JSON.stringify(state, null, 2);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const tmpFile = `${LOCAL_DATA_FILE}.${process.pid}.${Date.now()}.${attempt}.tmp`;
+    try {
+      fs.writeFileSync(tmpFile, payload, "utf8");
+      fs.renameSync(tmpFile, LOCAL_DATA_FILE);
+      return;
+    } catch {
+      try {
+        if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+      } catch {
+        // ignore
+      }
+      if (attempt === 3) {
+        fs.writeFileSync(LOCAL_DATA_FILE, payload, "utf8");
+      } else {
+        await new Promise((r) => setTimeout(r, 20 * (attempt + 1)));
+      }
+    }
+  }
 }
 
 export function appendActivity(
@@ -1150,7 +1167,7 @@ export async function createEntry(
 
 export async function updateEntry(
   id: string,
-  patch: Partial<Entry> & { changeSummary?: string },
+  patch: Partial<Entry> & { changeSummary?: string; expectedUpdatedAt?: string },
   editorName: string
 ): Promise<Entry | null> {
   const state = await loadState();
@@ -1158,8 +1175,13 @@ export async function updateEntry(
   if (!entry) return null;
 
   const now = new Date().toISOString();
-  const { changeSummary, ...fields } = patch;
+  const { changeSummary, expectedUpdatedAt, ...fields } = patch;
   const prevTitle = entry.title;
+
+  if (expectedUpdatedAt && expectedUpdatedAt !== entry.updatedAt) {
+    const { ConcurrentEditError } = await import("@/lib/api-helpers");
+    throw new ConcurrentEditError(entry.updatedAt, `Hồ sơ "${entry.title}"`);
+  }
 
   // #18 Canon Lock protection: block content edits when locked unless explicitly unlocking
   if (entry.locked && fields.locked !== false) {

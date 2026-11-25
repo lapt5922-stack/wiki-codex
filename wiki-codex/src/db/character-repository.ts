@@ -685,12 +685,17 @@ export async function createCharacterDossier(
 
 export async function updateCharacterDossier(
   characterId: string,
-  payload: Partial<UpsertCharacterPayload>,
+  payload: Partial<UpsertCharacterPayload> & { expectedUpdatedAt?: string },
   editorName: string
 ): Promise<CharacterHydratedDossier | null> {
   const state = await loadCharacterState();
   const char = state.characters.find((c) => c.id === characterId && !c.deletedAt);
   if (!char) return null;
+
+  if (payload.expectedUpdatedAt && payload.expectedUpdatedAt !== char.updatedAt) {
+    const { ConcurrentEditError } = await import("@/lib/api-helpers");
+    throw new ConcurrentEditError(char.updatedAt, `Nhân vật "${char.fullName}"`);
+  }
 
   const now = new Date().toISOString();
   if (payload.character) {

@@ -55,14 +55,97 @@ const RULE_LABELS: Record<HealthRuleCode, string> = {
   conflicting_data: "Dữ liệu mâu thuẫn"
 };
 
-const RES_FILE = path.join(process.cwd(), ".data", "health-resolutions.json");
+import { getPostgresPool, isPostgresConfigured } from "@/db/pool";
 
-function loadResolutions(): Record<string, HealthResolutionStatus> {
-  if (!fs.existsSync(RES_FILE)) return {};
+const RES_FILE = path.join(process.cwd(), ".data", "health-resolutions.json");
+let cachedResolutions: Record<string, HealthResolutionStatus> | null = null;
+let pgResInit = false;
+
+async function ensurePgHealthTable() {
+  if (pgResInit || !isPostgresConfigured()) return;
+  const pool = getPostgresPool();
+  if (!pool) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS codex_health_resolutions_blob (
+      id TEXT PRIMARY KEY,
+      payload JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  pgResInit = true;
+}
+
+function loadResolutionsSync(): Record<string, HealthResolutionStatus> {
+  if (cachedResolutions) return cachedResolutions;
+  if (!fs.existsSync(RES_FILE)) {
+    cachedResolutions = {};
+    return cachedResolutions;
+  }
   try {
-    return JSON.parse(fs.readFileSync(RES_FILE, "utf8")) as Record<string, HealthResolutionStatus>;
+    cachedResolutions = JSON.parse(fs.readFileSync(RES_FILE, "utf8")) as Record<
+      string,
+      HealthResolutionStatus
+    >;
+    return cachedResolutions;
   } catch {
-    return {};
+    cachedResolutions = {};
+    return cachedResolutions;
+  }
+}
+
+export async function loadHealthResolutionsAsync(): Promise<Record<string, HealthResolutionStatus>> {
+  if (isPostgresConfigured()) {
+    try {
+      await ensurePgHealthTable();
+      const pool = getPostgresPool();
+      if (pool) {
+        const res = await pool.query(
+          `SELECT payload FROM codex_health_resolutions_blob WHERE id = 'primary' LIMIT 1`
+        );
+        if (res.rows[0]?.payload && typeof res.rows[0].payload === "object") {
+          cachedResolutions = res.rows[0].payload as Record<string, HealthResolutionStatus>;
+          return cachedResolutions;
+        }
+      }
+    } catch {
+      // fall through to local file
+    }
+  }
+  return loadResolutionsSync();
+}
+
+async function persistResolutionsToPostgres(map: Record<string, HealthResolutionStatus>) {
+  if (!isPostgresConfigured()) return;
+  try {
+    await ensurePgHealthTable();
+    const pool = getPostgresPool();
+    if (pool) {
+      await pool.query(
+        `INSERT INTO codex_health_resolutions_blob (id, payload, updated_at)
+         VALUES ('primary', $1::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+        [JSON.stringify(map)]
+      );
+    }
+  } catch {
+    // ignore background sync failure
+  }
+}
+
+function writeResolutionsLocalAtomic(map: Record<string, HealthResolutionStatus>) {
+  try {
+    const dir = path.dirname(RES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const json = JSON.stringify(map, null, 2);
+    const tmp = `${RES_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmp, json, "utf8");
+    fs.renameSync(tmp, RES_FILE);
+  } catch {
+    try {
+      fs.writeFileSync(RES_FILE, JSON.stringify(map, null, 2), "utf8");
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -70,16 +153,31 @@ export function setHealthIssueResolution(
   issueId: string,
   status: HealthResolutionStatus
 ): Record<string, HealthResolutionStatus> {
-  const map = loadResolutions();
-  map[issueId] = status;
-  try {
-    const dir = path.dirname(RES_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(RES_FILE, JSON.stringify(map, null, 2), "utf8");
-  } catch {
-    // ignore
-  }
+  const map = { ...loadResolutionsSync(), [issueId]: status };
+  cachedResolutions = map;
+  writeResolutionsLocalAtomic(map);
+  void persistResolutionsToPostgres(map);
   return map;
+}
+
+export async function setHealthIssueResolutionAsync(
+  issueId: string,
+  status: HealthResolutionStatus
+): Promise<Record<string, HealthResolutionStatus>> {
+  const current = await loadHealthResolutionsAsync();
+  const map = { ...current, [issueId]: status };
+  cachedResolutions = map;
+  writeResolutionsLocalAtomic(map);
+  await persistResolutionsToPostgres(map);
+  return map;
+}
+
+export async function saveAllHealthResolutions(
+  map: Record<string, HealthResolutionStatus>
+): Promise<void> {
+  cachedResolutions = { ...map };
+  writeResolutionsLocalAtomic(cachedResolutions);
+  await persistResolutionsToPostgres(cachedResolutions);
 }
 
 /**
@@ -94,7 +192,7 @@ export async function runContentHealthAudit(workspaceId: string): Promise<Conten
     loadUniversalRelationsStore()
   ]);
 
-  const resolutions = loadResolutions();
+  const resolutions = await loadHealthResolutionsAsync();
   const issues: ContentHealthIssue[] = [];
 
   const pushIssue = (

@@ -1,6 +1,6 @@
 import {
   runContentHealthAudit,
-  setHealthIssueResolution,
+  setHealthIssueResolutionAsync,
   type HealthResolutionStatus
 } from "@/lib/content-health-engine";
 import {
@@ -11,6 +11,10 @@ import {
 } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
+  const user = getRequestUser(request);
+  const denied = requireEditor(user);
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const workspaceId = searchParams.get("workspaceId") || "ws-aethelgard";
   const summary = await runContentHealthAudit(workspaceId);
@@ -26,6 +30,6 @@ export async function PATCH(request: Request) {
   if (!body.issueId || !["open", "acknowledged", "resolved"].includes(body.status)) {
     return jsonError("Thiếu issueId hoặc trạng thái xử lý không hợp lệ.");
   }
-  setHealthIssueResolution(String(body.issueId), body.status as HealthResolutionStatus);
+  await setHealthIssueResolutionAsync(String(body.issueId), body.status as HealthResolutionStatus);
   return jsonOk({ updated: true });
 }

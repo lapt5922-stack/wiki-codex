@@ -3,8 +3,71 @@ import type { SessionUser, UserRole } from "@/types/codex";
 
 export const SESSION_COOKIE_NAME = "wiki_codex_session";
 
-const AUTH_SECRET =
-  process.env.AUTH_SECRET || "wiki-codex-dev-secret-change-me-in-production-2026";
+export function getAuthSecret(): string {
+  return (
+    process.env.AUTH_SECRET?.trim() ||
+    process.env.SESSION_SECRET?.trim() ||
+    "wiki-codex-dev-secret-change-me-in-production-2026"
+  );
+}
+
+interface RateLimitBucket {
+  failures: number;
+  resetAt: number;
+}
+
+const loginBuckets = new Map<string, RateLimitBucket>();
+const MAX_LOGIN_FAILURES = 8;
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+
+export function checkLoginRateLimit(identifier: string): {
+  allowed: boolean;
+  retryAfterSeconds: number;
+} {
+  const key = identifier.trim().toLowerCase() || "anonymous";
+  const now = Date.now();
+  const bucket = loginBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  if (bucket.failures >= MAX_LOGIN_FAILURES) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
+    };
+  }
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+export function recordLoginFailure(identifier: string): void {
+  const key = identifier.trim().toLowerCase() || "anonymous";
+  const now = Date.now();
+  const bucket = loginBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    loginBuckets.set(key, { failures: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return;
+  }
+  bucket.failures += 1;
+}
+
+export function clearLoginFailures(identifier: string): void {
+  const key = identifier.trim().toLowerCase() || "anonymous";
+  loginBuckets.delete(key);
+}
+
+export function resetAllLoginRateLimits(): void {
+  loginBuckets.clear();
+}
+
+export function buildSessionCookieOptions(maxAgeSeconds: number) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: maxAgeSeconds
+  };
+}
 
 export function hashPassword(password: string, salt?: string): string {
   const usedSalt = salt ?? crypto.randomBytes(16).toString("hex");
@@ -32,7 +95,7 @@ export function signSessionToken(user: SessionUser): string {
   ).toString("base64url");
 
   const sig = crypto
-    .createHmac("sha256", AUTH_SECRET)
+    .createHmac("sha256", getAuthSecret())
     .update(payload)
     .digest("base64url");
 
@@ -46,7 +109,7 @@ export function verifySessionToken(token: string | undefined): SessionUser | nul
   const [payload, sig] = parts;
 
   const expectedSig = crypto
-    .createHmac("sha256", AUTH_SECRET)
+    .createHmac("sha256", getAuthSecret())
     .update(payload)
     .digest("base64url");
 

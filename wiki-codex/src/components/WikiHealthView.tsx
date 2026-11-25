@@ -4,20 +4,25 @@ import React, { useEffect, useState } from "react";
 import {
   Activity,
   AlertTriangle,
+  Bot,
+  Check,
   CheckCircle2,
   FileWarning,
   Gauge,
   GitFork,
   Plus,
   ShieldCheck,
+  Sparkles,
   Trash2,
-  Unlink
+  Unlink,
+  X
 } from "lucide-react";
 import type { WikiHealthReport } from "@/types/codex";
 import type {
   ContentHealthSummary,
   HealthResolutionStatus
 } from "@/lib/content-health-engine";
+import type { AiAssistantMode, AiProposalRecord } from "@/db/ai-proposals-repo";
 import { RelationshipManagerView } from "./RelationshipManagerView";
 
 interface WikiHealthViewProps {
@@ -29,6 +34,39 @@ interface WikiHealthViewProps {
   onMutated?: () => Promise<void>;
 }
 
+const AI_MODE_LABELS: Array<{ mode: AiAssistantMode; label: string; desc: string }> = [
+  {
+    mode: "consistency_checker",
+    label: "Kiểm toán Nhất quán Lore",
+    desc: "Đối chiếu 9 quy tắc toàn vẹn dữ liệu thực tế"
+  },
+  {
+    mode: "timeline_consistency",
+    label: "Đối chiếu Niên đại & Sinh tử",
+    desc: "Phát hiện mâu thuẫn năm sinh/mất & mốc thời gian"
+  },
+  {
+    mode: "missing_data_suggestions",
+    label: "Gợi ý Dữ liệu Thiếu & Nguồn gốc",
+    desc: "Thống kê Canon/Verified/Inferred/Draft & trường trống"
+  },
+  {
+    mode: "relationship_finder",
+    label: "Dò tìm Liên kết Tiềm ẩn",
+    desc: "Đề xuất nối quan hệ giữa các thực thể nhắc tên nhau"
+  },
+  {
+    mode: "historian",
+    label: "Tổng hợp Sử gia",
+    desc: "Hệ thống hóa sự kiện Biên niên sử & Kho lưu trữ"
+  },
+  {
+    mode: "research_assistant",
+    label: "Phân tách Nguồn học thuật",
+    desc: "Rà soát hồ sơ Unverified / Inferred cần bổ sung nguồn"
+  }
+];
+
 export function WikiHealthView({
   workspaceId,
   canEdit,
@@ -37,7 +75,7 @@ export function WikiHealthView({
   onCreateRedLink,
   onMutated
 }: WikiHealthViewProps) {
-  const [activeTab, setActiveTab] = useState<"validation" | "relations">("validation");
+  const [activeTab, setActiveTab] = useState<"validation" | "relations" | "ai_studio">("validation");
   const [report, setReport] = useState<WikiHealthReport | null>(null);
   const [validation, setValidation] = useState<ContentHealthSummary | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string>("all");
@@ -45,12 +83,20 @@ export function WikiHealthView({
   const [stressBusy, setStressBusy] = useState(false);
   const [stressMsg, setStressMsg] = useState("");
 
+  // AI Consistency & Missing-Data Proposal Studio state
+  const [proposals, setProposals] = useState<AiProposalRecord[]>([]);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiTargetTitle, setAiTargetTitle] = useState("Toàn bộ Thế giới");
+  const [aiPromptNote, setAiPromptNote] = useState("");
+
   async function loadHealth() {
     setLoading(true);
     try {
       const [gRes, vRes] = await Promise.all([
         fetch(`/api/graph?workspaceId=${workspaceId}&mode=health`).then((r) => r.json()),
-        fetch(`/api/health/validate?workspaceId=${workspaceId}`).then((r) => r.json())
+        fetch(`/api/health/validate?workspaceId=${workspaceId}`)
+          .then((r) => (r.ok ? r.json() : { summary: null }))
+          .catch(() => ({ summary: null }))
       ]);
       setReport(gRes.health || null);
       setValidation(vRes.summary || null);
@@ -59,10 +105,57 @@ export function WikiHealthView({
     }
   }
 
+  async function loadProposals() {
+    if (!canEdit) return;
+    try {
+      const res = await fetch(`/api/ai-assistant?workspaceId=${workspaceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProposals(data.proposals || []);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     void loadHealth();
+    void loadProposals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId]);
+  }, [workspaceId, canEdit]);
+
+  async function runAiMode(mode: AiAssistantMode) {
+    if (!canEdit) return;
+    setAiBusy(true);
+    try {
+      const res = await fetch("/api/ai-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          mode,
+          targetTitle: aiTargetTitle,
+          promptNote: aiPromptNote
+        })
+      });
+      if (res.ok) {
+        await loadProposals();
+      }
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function reviewProposal(id: string, decision: "approved" | "rejected") {
+    const res = await fetch("/api/ai-assistant", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision })
+    });
+    if (res.ok) {
+      await loadProposals();
+    }
+  }
 
   async function updateIssueStatus(issueId: string, status: HealthResolutionStatus) {
     await fetch("/api/health/validate", {
@@ -118,9 +211,9 @@ export function WikiHealthView({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg sm:text-xl font-semibold text-[var(--accent)] flex items-center gap-2">
             <Activity className="w-5 h-5" />
-            Trung tâm Kiểm toán Tri thức, Sức khỏe Dữ liệu &amp; Quan hệ
+            Trung tâm Kiểm toán Tri thức, Quan hệ &amp; AI Lore Studio V9.0
           </h2>
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <button
               type="button"
               onClick={() => setActiveTab("validation")}
@@ -143,6 +236,19 @@ export function WikiHealthView({
             >
               <GitFork className="w-3.5 h-3.5" /> Relationship Manager
             </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("ai_studio")}
+                className={`min-h-[36px] px-3 py-1.5 rounded-xl border font-semibold inline-flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === "ai_studio"
+                    ? "border-cyan-400 bg-cyan-400 text-[#090e1c]"
+                    : "border-[var(--border-subtle)] text-cyan-300"
+                }`}
+              >
+                <Bot className="w-3.5 h-3.5" /> AI Lore &amp; Consistency ({proposals.length})
+              </button>
+            )}
           </div>
         </div>
 
@@ -174,6 +280,141 @@ export function WikiHealthView({
           canEdit={canEdit}
           onOpenEntry={onOpenEntry}
         />
+      ) : activeTab === "ai_studio" && canEdit ? (
+        <div className="space-y-4">
+          <div className="codex-card rounded-2xl p-4 sm:p-5 space-y-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="font-display text-base font-bold text-cyan-300 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" /> AI Lore Consistency &amp; Missing-Data Proposal Studio
+                </h3>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  Nguyên tắc bất khả xâm phạm: Mọi phân tích chỉ dựa trên dữ liệu thực có, lưu vào hàng đợi xét duyệt — tuyệt đối không tự bịa sự kiện hoặc tự ghi đè Canon.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input
+                type="text"
+                value={aiTargetTitle}
+                onChange={(e) => setAiTargetTitle(e.target.value)}
+                placeholder="Phạm vi / Tiêu đề đối tượng rà soát..."
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+              />
+              <input
+                type="text"
+                value={aiPromptNote}
+                onChange={(e) => setAiPromptNote(e.target.value)}
+                placeholder="Ghi chú biên tập bổ sung (tùy chọn)..."
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {AI_MODE_LABELS.map((item) => (
+                <button
+                  key={item.mode}
+                  type="button"
+                  disabled={aiBusy}
+                  onClick={() => void runAiMode(item.mode)}
+                  className="text-left rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/70 hover:border-cyan-400/70 p-3 transition cursor-pointer disabled:opacity-50"
+                >
+                  <div className="font-semibold text-[var(--text-primary)] flex items-center justify-between">
+                    <span>{item.label}</span>
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">{item.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="codex-card rounded-2xl p-4 sm:p-5 space-y-3 text-xs">
+            <h3 className="font-display text-sm font-semibold text-[var(--accent)]">
+              Hàng đợi Đề xuất Biên tập ({proposals.length})
+            </h3>
+            {proposals.length === 0 ? (
+              <p className="text-[var(--text-muted)] py-4 text-center">
+                Chưa có đề xuất nào. Hãy chọn một chế độ phân tích ở trên để khởi tạo báo cáo kiểm toán.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-[520px] overflow-y-auto codex-scrollbar pr-1">
+                {proposals.map((p) => (
+                  <div
+                    key={p.id}
+                    className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-base)]/60 p-3.5 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300">
+                          {p.mode}
+                        </span>
+                        <strong className="text-[var(--text-primary)]">{p.targetTitle}</strong>
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                            p.status === "approved"
+                              ? "bg-emerald-500/15 text-emerald-300"
+                              : p.status === "rejected"
+                              ? "bg-rose-500/15 text-rose-300"
+                              : "bg-amber-500/15 text-amber-300"
+                          }`}
+                        >
+                          {p.status === "approved"
+                            ? "Đã duyệt"
+                            : p.status === "rejected"
+                            ? "Từ chối"
+                            : "Chờ duyệt"}
+                        </span>
+                      </div>
+
+                      {p.status === "pending" && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => void reviewProposal(p.id, "approved")}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" /> Duyệt
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void reviewProposal(p.id, "rejected")}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 cursor-pointer"
+                          >
+                            <X className="w-3 h-3" /> Từ chối
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {p.provenanceBreakdown && (
+                      <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                        {Object.entries(p.provenanceBreakdown).map(([k, count]) => (
+                          <span
+                            key={k}
+                            className="px-2 py-0.5 rounded border border-[var(--border-subtle)] bg-white/5 text-[var(--text-secondary)]"
+                          >
+                            {k}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <pre className="whitespace-pre-wrap font-sans text-xs text-[var(--text-secondary)] bg-black/25 rounded-lg p-3 border border-white/5">
+                      {p.proposedContent}
+                    </pre>
+
+                    <div className="text-[10px] text-[var(--text-muted)] flex flex-wrap justify-between gap-2">
+                      <span>Nguồn đối chiếu: {p.inputSources.join(" · ")}</span>
+                      <span>Tạo bởi {p.createdBy}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       ) : loading || !report ? (
         <div className="codex-card rounded-2xl p-8 text-center text-xs text-[var(--text-muted)]">
           Đang phân tích sức khỏe kho tri thức theo 9 quy tắc kiểm toán...

@@ -1009,17 +1009,31 @@ export async function createOrCloneKingdom(
   return base;
 }
 
+export async function loadKingdomOverlayStore(): Promise<KingdomOverlayStore> {
+  return loadOverlayStore();
+}
+
+export async function saveKingdomOverlayStore(store: KingdomOverlayStore): Promise<void> {
+  return saveOverlayStore(store);
+}
+
 export async function updateKingdomDossier(
   id: string,
   patch: Partial<KingdomHydratedDossier> & {
     customFieldValues?: Record<string, unknown>;
     changeNote?: string;
+    expectedUpdatedAt?: string;
   },
   editorName: string
 ): Promise<KingdomHydratedDossier | null> {
   const store = await loadOverlayStore();
   const current = store.customDossiers[id] ?? getBase360Kingdoms().get(id);
   if (!current || store.deletedIds.includes(id)) return null;
+
+  if (patch.expectedUpdatedAt && patch.expectedUpdatedAt !== current.kingdom.updatedAt) {
+    const { ConcurrentEditError } = await import("@/lib/api-helpers");
+    throw new ConcurrentEditError(current.kingdom.updatedAt, `Quốc gia "${current.kingdom.officialName}"`);
+  }
 
   const now = new Date().toISOString();
   const next: KingdomHydratedDossier = structuredClone(current);

@@ -13,7 +13,11 @@ import {
   requirePublisher
 } from "@/lib/api-helpers";
 
+import { canPublishPublic } from "@/lib/rbac";
+
 export async function GET(request: Request) {
+  const user = getRequestUser(request);
+  const isPublisher = canPublishPublic(user.role);
   const { searchParams } = new URL(request.url);
   const workspaceId = searchParams.get("workspaceId");
   const state = await loadState();
@@ -21,8 +25,11 @@ export async function GET(request: Request) {
     .filter((s) => !workspaceId || s.workspaceId === workspaceId)
     .slice(0, 20);
   const stats = workspaceId ? await getPublishPreviewStats(workspaceId) : null;
+  const safeTargets = isPublisher
+    ? state.publishTargets
+    : state.publishTargets.map((t) => ({ ...t, webhookUrl: "" }));
   return jsonOk({
-    targets: state.publishTargets,
+    targets: safeTargets,
     snapshots,
     stats
   });

@@ -6,6 +6,8 @@ import { getPostgresPool, isPostgresConfigured } from "./pool";
 export type AiAssistantMode =
   | "lore_assistant"
   | "consistency_checker"
+  | "timeline_consistency"
+  | "missing_data_suggestions"
   | "relationship_finder"
   | "historian"
   | "article_generator"
@@ -20,6 +22,7 @@ export interface AiProposalRecord {
   promptNote: string;
   proposedContent: string;
   inputSources: string[];
+  provenanceBreakdown?: Record<string, number>;
   status: "pending" | "approved" | "rejected";
   createdBy: string;
   reviewedBy: string | null;
@@ -77,7 +80,7 @@ export async function loadAiProposals(): Promise<AiProposalRecord[]> {
   return cached;
 }
 
-async function saveAiProposals(list: AiProposalRecord[]) {
+export async function saveAiProposals(list: AiProposalRecord[]) {
   cached = list;
   if (isPostgresConfigured()) {
     try {

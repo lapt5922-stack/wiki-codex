@@ -34,6 +34,7 @@ import {
   FreeformTabBlocksEditor,
   ProfileTabCrudBar
 } from "./CustomProfileLayoutBuilder";
+import { UnsavedChangesPrompt } from "./ui/ImperialPrimitives";
 
 const ENTRY_EDITOR_TABS = [
   { id: "overview", label: "Tổng quan" },
@@ -144,6 +145,39 @@ export function EntryEditorModal({
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [lastDraftAt, setLastDraftAt] = useState<string>("");
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+
+  const initialTitleRef = React.useRef(entry?.title || initialTitle);
+  const initialMdRef = React.useRef(
+    entry?.contentMarkdown ||
+      initialContent ||
+      "## Tổng quan\n\nViết nội dung bách khoa tại đây..."
+  );
+  const initialSummaryRef = React.useRef(entry?.summary || "");
+
+  const isDirty =
+    title !== initialTitleRef.current ||
+    contentMarkdown !== initialMdRef.current ||
+    summary !== initialSummaryRef.current;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (ev: BeforeUnloadEvent) => {
+      ev.preventDefault();
+      ev.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  function requestSafeClose() {
+    if (isDirty && !saving) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    onClose();
+  }
 
   // Auto-Save Local Draft (prevents data loss on refresh/mobile)
   const draftKey = `codex_autosave_draft_${workspaceId}_${entry?.id || "new"}`;
@@ -175,14 +209,16 @@ export function EntryEditorModal({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
+        const nowStr = new Date().toLocaleTimeString("vi-VN");
         window.localStorage.setItem(
           draftKey,
           JSON.stringify({
             title,
             contentMarkdown,
-            savedAt: new Date().toLocaleTimeString("vi-VN"),
+            savedAt: nowStr,
           })
         );
+        setLastDraftAt(nowStr);
       } catch {
         // ignore quota errors
       }
@@ -390,6 +426,7 @@ export function EntryEditorModal({
         economyProfile,
         emblemConfig,
         profileLayout,
+        expectedUpdatedAt: entry?.updatedAt,
         changeSummary: changeSummary.trim() || undefined
       };
 
@@ -418,10 +455,10 @@ export function EntryEditorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-2 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-2 sm:p-4 v9-adaptive-modal-backdrop">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-6xl max-h-[94vh] overflow-y-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-4 sm:p-6 shadow-2xl space-y-5"
+        className="w-full max-w-6xl max-h-[94vh] overflow-y-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-4 sm:p-6 shadow-2xl space-y-5 v9-adaptive-modal-panel animate-codex-scale-in codex-scrollbar"
       >
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -438,6 +475,11 @@ export function EntryEditorModal({
             >
               Hoàn thiện {liveCompleteness.score}% · {liveCompleteness.tierLabel}
             </span>
+            {lastDraftAt && (
+              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-mono border border-cyan-500/35 bg-cyan-500/10 text-cyan-200">
+                ✓ Nháp tự lưu {lastDraftAt}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -457,8 +499,8 @@ export function EntryEditorModal({
             )}
             <button
               type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-white/10"
+              onClick={requestSafeClose}
+              className="p-1.5 rounded-lg hover:bg-white/10 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1597,7 +1639,7 @@ export function EntryEditorModal({
         <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestSafeClose}
             className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs cursor-pointer"
           >
             Hủy
@@ -1605,12 +1647,20 @@ export function EntryEditorModal({
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2 rounded-xl bg-[var(--accent)] text-[#090e1c] font-semibold text-xs hover:brightness-110 disabled:opacity-60 cursor-pointer"
+            className="v9-sheen-btn px-5 py-2 rounded-xl bg-[var(--accent)] text-[#090e1c] font-semibold text-xs hover:brightness-110 disabled:opacity-60 cursor-pointer"
           >
-            {saving ? "Đang lưu..." : entry ? "Lưu thay đổi" : "Tạo Hồ sơ"}
+            {saving ? "Đang lưu CSDL..." : entry ? "Lưu thay đổi" : "Tạo Hồ sơ"}
           </button>
         </div>
       </form>
+      <UnsavedChangesPrompt
+        open={confirmDiscardOpen}
+        onStay={() => setConfirmDiscardOpen(false)}
+        onDiscard={() => {
+          setConfirmDiscardOpen(false);
+          onClose();
+        }}
+      />
     </div>
   );
 }
